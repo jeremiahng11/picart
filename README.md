@@ -83,7 +83,9 @@ committed deliberately.
 The application code is **GPLv3** — see [LICENSE](LICENSE). Copyright (C) 2023
 Sebastian Quilitz; this fork retains the upstream copyright notices.
 
-The logo (`public/jkl_small.png`) is **not** covered by the GPL. It was created
-by [Chibitheo](https://www.dreamstime.com/chibitheo_info) under a commercial
-license obtained for the original Croco Cartridge project, and that license does
-not extend to this fork. Replace it with original artwork before distributing.
+The JKL logo and icon (`public/jkl_small.png`, `public/favicon.png`) are **not**
+covered by the GPL. They are JKL Family Arcade artwork, all rights reserved, and
+are included here for use within this project only.
+
+The upstream Croco artwork, which was licensed from a third party for the
+original project only, has been removed from this fork entirely.
