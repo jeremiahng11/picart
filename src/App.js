@@ -26,6 +26,9 @@ import ProgressBar from 'react-bootstrap/ProgressBar';
 import { Trash3Fill, Save2Fill } from "react-bootstrap-icons";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+// Imported rather than read from public/ so webpack emits a content-hashed
+// filename; a CDN in front of the app cannot then serve a stale logo.
+import jklLogo from './assets/jkl_small.png';
 
 function isElectron() {
   // Renderer process
@@ -246,7 +249,7 @@ class GbCartridge extends React.Component {
       if (this.state.state === this.StateConnect) {
         return (
           <div className="connect">
-            <img src={process.env.PUBLIC_URL + '/jkl_small.png'} alt="pixel JKL logo" className="gameboy" />
+            <img src={jklLogo} alt="pixel JKL logo" className="gameboy" />
             <h2 className="cover-heading">JKL Gameboy Cartridge</h2>
             <p className="lead">Connect your Cartridge and manage your ROMs</p>
             <hr />
