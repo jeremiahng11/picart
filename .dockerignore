@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+build
+dist
+coverage
+*.md
+LICENSE
+.DS_Store
+npm-debug.log*
+docker-compose.yml
+Dockerfile

@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    image: jkl-cartridge-webapp:local
+    ports:
+      # WebUSB treats http://localhost as a secure context, so this works
+      # locally without TLS. Any other host must be served over https.
+      - "8080:80"
+    restart: unless-stopped
