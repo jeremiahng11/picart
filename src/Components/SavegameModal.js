@@ -114,7 +114,7 @@ class SavegameModal extends React.Component {
                 view.setBigUint64(40, BigInt(localTimeStamp), true);
 
                 console.log("Sending RTC data");
-                this.comm.sendRtcDataCommand(this.props.romInfo.romId, rtcData);
+                await this.comm.sendRtcDataCommand(this.props.romInfo.romId, rtcData);
             }
             catch (e) {
                 this.onError("Uploading the RTC data failed");
@@ -160,15 +160,18 @@ class SavegameModal extends React.Component {
                 var res = await this.comm.receiveSavegameChunkCommand();
                 console.log("Received bank " + res.bank + " chunk " + res.chunk);
 
+                // Checked before the data is stored, so a mismatched chunk is
+                // never written into the buffer.
+                if (res.bank !== bank || res.chunk !== chunk) {
+                    throw new Error("Expected bank " + bank + " chunk " + chunk +
+                        " but received bank " + res.bank + " chunk " + res.chunk);
+                }
+
                 saveGameBuffer.set(res.data, bytesTransferred);
 
                 bytesTransferred += CHUNK_SIZE;
 
                 this.setState({ bytesTransferred: bytesTransferred });
-                if (res.bank !== bank || res.chunk !== chunk) {
-                    console.log("Wrong bank/chunk");
-                    return;
-                }
             }
 
             console.log("Download was finished");
@@ -194,7 +197,7 @@ class SavegameModal extends React.Component {
         }
         catch (e) {
             this.onError("Downloading the savegame failed");
-            this.setState({ uploadInProgress: false });
+            this.setState({ downloadInProgress: false });
 
             console.log("Downloading the savegame failed: " + e);
         }

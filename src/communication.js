@@ -316,15 +316,22 @@ class Communication {
                 receiveLength = 20;
             }
             this.executeCommand(4, arrayView, receiveLength).then(result => {
-                var view = new DataView(result);
-                var romInfo = {
-                    romId: rom,
-                    name: StringView.getStringNT(view, 0),
-                    numRamBanks: view.getUint8(17),
-                    mbc: this.supportsMbcInfo ? view.getUint8(18) : 0xFF,
-                    numRomBanks: view.byteLength > 19 ? view.getUint16(19) : 0
-                };
-                resolve(romInfo);
+                // A throw in here would otherwise leave the outer promise
+                // unsettled, hanging every caller that awaits it.
+                try {
+                    var view = new DataView(result);
+                    var romInfo = {
+                        romId: rom,
+                        name: StringView.getStringNT(view, 0),
+                        numRamBanks: view.getUint8(17),
+                        mbc: this.supportsMbcInfo ? view.getUint8(18) : 0xFF,
+                        numRomBanks: view.byteLength >= 21 ? view.getUint16(19) : 0
+                    };
+                    resolve(romInfo);
+                }
+                catch (e) {
+                    reject("Could not parse rom info: " + e);
+                }
             },
                 error => {
                     reject(error);

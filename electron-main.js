@@ -46,20 +46,25 @@ function createWindow() {
 
     event.preventDefault()
 
-    if (details.deviceList && details.deviceList.length > 0) {
-      const deviceToReturn = details.deviceList.find((device) => {
-        console.log("device: " + util.inspect(device, {showHidden: false, depth: null, colors: true}));
-        if ((device.productName !== "JKL Cartridge") || (device.manufacturerName !== "x-pantion") )
-        {
-          return false;
-        }
-        return true;
-      })
-      if (deviceToReturn) {
-        callback(deviceToReturn.deviceId)
-      } else {
-        callback()
+    // The callback must be invoked on every path, or navigator.usb.requestDevice()
+    // in the renderer never settles and the UI hangs on "Connecting...".
+    if (!details.deviceList || details.deviceList.length === 0) {
+      callback()
+      return
+    }
+
+    const deviceToReturn = details.deviceList.find((device) => {
+      console.log("device: " + util.inspect(device, {showHidden: false, depth: null, colors: true}));
+      if ((device.productName !== "JKL Cartridge") || (device.manufacturerName !== "x-pantion") )
+      {
+        return false;
       }
+      return true;
+    })
+    if (deviceToReturn) {
+      callback(deviceToReturn.deviceId)
+    } else {
+      callback()
     }
   })
 

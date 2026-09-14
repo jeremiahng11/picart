@@ -8,9 +8,9 @@
       "sizes": "64x64"
     },
     {
-      "src": "jkl_small.png",
+      "src": "apple-touch-icon.png",
       "type": "image/png",
-      "sizes": "400x400"
+      "sizes": "180x180"
     }
   ],
   "start_url": ".",

@@ -26,6 +26,7 @@ import ProgressBar from 'react-bootstrap/ProgressBar';
 import { Trash3Fill, Save2Fill } from "react-bootstrap-icons";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import './App.css';
 // Imported rather than read from public/ so webpack emits a content-hashed
 // filename; a CDN in front of the app cannot then serve a stale logo.
 import jklLogo from './assets/jkl_small.png';
@@ -211,7 +212,15 @@ class GbCartridge extends React.Component {
   deleteRom = async (type, id) => {
     console.log("Deleting ROM " + id + " " + this.state.romInfos[id]);
 
-    await this.comm.deleteRomCommand(id);
+    try {
+      await this.comm.deleteRomCommand(id);
+    }
+    catch (e) {
+      console.log("Deleting the ROM failed: " + e);
+      this.hideConfirmationModal();
+      this.displayError("Deleting the ROM failed");
+      return;
+    }
 
     this.hideConfirmationModal();
 

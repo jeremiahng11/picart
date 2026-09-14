@@ -83,8 +83,8 @@ committed deliberately.
 The application code is **GPLv3** — see [LICENSE](LICENSE). Copyright (C) 2023
 Sebastian Quilitz; this fork retains the upstream copyright notices.
 
-The JKL logo and icon (`public/jkl_small.png`, `public/favicon.png`) are **not**
-covered by the GPL. They are JKL Family Arcade artwork, all rights reserved, and
+The JKL logo and icons (`src/assets/jkl_small.png`, `public/favicon.png`,
+`public/apple-touch-icon.png`) are **not** covered by the GPL. They are JKL Family Arcade artwork, all rights reserved, and
 are included here for use within this project only.
 
 The upstream Croco artwork, which was licensed from a third party for the
