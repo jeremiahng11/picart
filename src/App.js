@@ -92,6 +92,7 @@ class GbCartridge extends React.Component {
     openAddRomModal: false,
     deviceInfo: {},
     serialId: null,
+    buildName: null,
     romUtilization: { numRoms: 0, usedBanks: 0, maxBanks: 0 },
     romInfos: [],
     confirmationMessage: null,
@@ -142,7 +143,15 @@ class GbCartridge extends React.Component {
     this.setState({
       state: this.StateConnecting
     });
-    this.comm.getDevice().then(() => {
+
+    this.comm.getDevice().catch((first) => {
+      // The browser may still hold permission for a device it can no longer
+      // open, which is the state a disconnect can leave behind. Ask for one
+      // rather than giving up.
+      console.log("Reopening the granted device failed: " + first);
+      this.comm = new Communication();
+      return this.comm.getDevice(false);
+    }).then(() => {
       console.log("Usb connected, updating status.");
       this.setState({
         state: this.StateRetrievingInfo
@@ -150,9 +159,16 @@ class GbCartridge extends React.Component {
       this.readDeviceStatus();
     }).catch(c => {
       console.log(c);
+      this.comm = null;
       this.setState({
         state: this.StateConnect
       });
+
+      // Choosing nothing in the picker is not a failure worth shouting about.
+      if (c && c.name === "NotFoundError") {
+        return;
+      }
+      this.displayError("Could not connect: " + ((c && c.message) || c));
     });
   }
 
@@ -160,11 +176,22 @@ class GbCartridge extends React.Component {
     console.log("Reading device info...");
 
     var deviceInfo = await this.comm.readDeviceInfoCommand();
+
+    // The first command right after the interface opens occasionally does not
+    // come back, which lands us on the 0.0.0 fallback. Give it one more go
+    // before reporting the version as unknown.
+    if (deviceInfo.unknown) {
+      console.log("Device info read failed, retrying once...");
+      await new Promise(resolve => setTimeout(resolve, 150));
+      deviceInfo = await this.comm.readDeviceInfoCommand();
+    }
+
     this.setState({ deviceInfo: deviceInfo });
 
-    // Compared as a whole tuple. Testing minor alone reported firmware 1.0.0 as
-    // out of date.
-    if (compareVersion(
+    // Only prompt when the version was actually read. A failed read falls back
+    // to 0.0.0, which would otherwise compare as older than the minimum and
+    // prompt an upgrade on firmware that is already current.
+    if (!deviceInfo.unknown && compareVersion(
       [deviceInfo.swVersion.major, deviceInfo.swVersion.minor, deviceInfo.swVersion.patch],
       MinimumFirmwareVersion) < 0) {
       setTimeout(() => {
@@ -193,6 +220,15 @@ class GbCartridge extends React.Component {
           theme: "light",
         });
       }, 1000);
+    }
+
+    try {
+      var buildName = await this.comm.readBuildNameCommand();
+      console.log("buildName is " + buildName);
+      this.setState({ buildName: buildName });
+    }
+    catch (e) {
+      console.log("Was not able to read buildName (firmware older than 1.0.1?)");
     }
 
     try {
@@ -333,6 +369,7 @@ class GbCartridge extends React.Component {
       romUtilization: { numRoms: 0, usedBanks: 0, maxBanks: 0 },
       deviceInfo: {},
       serialId: null,
+      buildName: null,
     });
 
     // Said after the state change so it lands on the connect screen, which is
@@ -557,6 +594,9 @@ class GbCartridge extends React.Component {
             >
               {gitShort}
             </a>
+            {this.state.buildName && (
+              <span className="footer__buildname">{this.state.buildName}</span>
+            )}
             {sw.gitDirty && <span className="footer__dirty">dirty</span>}
             {this.state.serialId && (
               <>

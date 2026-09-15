@@ -17,20 +17,49 @@
 
 import StringView from "stringview"
 
+// How long any single step of opening the device may take before the attempt is
+// abandoned. Without this a step that never settles leaves the app on the
+// connecting screen with no way forward.
+const OPEN_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, what) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(what + " timed out after " + (OPEN_TIMEOUT_MS / 1000) + "s"));
+        }, OPEN_TIMEOUT_MS);
+
+        promise.then(
+            (value) => { clearTimeout(timer); resolve(value); },
+            (error) => { clearTimeout(timer); reject(error); }
+        );
+    });
+}
+
 class Communication {
+    static FILTERS = [
+        { 'vendorId': 0x2E8A, 'productId': 0x107F }, // TinyUSB example
+        { 'vendorId': 0xcafe, 'productId': 0x2142 }, // TinyUSB example
+    ];
+
     constructor() {
         this.featureStep = 0;
         this.supportsSpeedChangeBankInfo = false;
         this.supportsMbcInfo = false;
     }
 
-    static requestPort() {
-        const filters = [
-            { 'vendorId': 0x2E8A, 'productId': 0x107F }, // TinyUSB example
-            { 'vendorId': 0xcafe, 'productId': 0x2142 }, // TinyUSB example
-        ];
+    // A device already granted by the browser can be reopened without asking
+    // again. Reconnecting after a disconnect is the case that matters: the
+    // permission is still held, so there is no need for a second prompt.
+    static grantedPort() {
+        return navigator.usb.getDevices().then((devices) => {
+            return devices.find((d) =>
+                Communication.FILTERS.some((f) =>
+                    d.vendorId === f.vendorId && d.productId === f.productId)) || null;
+        }).catch(() => null);
+    }
 
-        return navigator.usb.requestDevice({ 'filters': filters }).then(
+    static requestPort() {
+        return navigator.usb.requestDevice({ 'filters': Communication.FILTERS }).then(
             device => {
                 return device;
             }
@@ -63,47 +92,57 @@ class Communication {
         })
     }
 
-    getDevice() {
-        let device = null;
+    // reuse asks the browser for a device it has already granted, so a
+    // reconnect does not prompt again. Every step is bounded, because a step
+    // that hangs used to strand the app on the connecting screen forever.
+    getDevice(reuse = true) {
         this.ready = false;
-        return new Promise((resolve, reject) => {
-            Communication.requestPort().then(dev => {
-                console.log("Opening device...");
-                device = dev;
-                this.device = device;
-                return dev.open();
-            }).then(() => {
-                console.log("Selecting configuration");
-                return device.selectConfiguration(1);
-            }).then(() => {
-                console.log("Getting endpoints")
-                this.getEndpoints(device.configuration.interfaces);
-            }).then(() => {
-                console.log("Claiming interface");
-                return device.claimInterface(this.ifNum);
-            }).then(() => {
-                console.log("Select alt interface");
-                return device.selectAlternateInterface(this.ifNum, 0);
-            }).then(() => {
-                console.log("Control Transfer Out");
-                return device.controlTransferOut({
-                    'requestType': 'class',
-                    'recipient': 'interface',
-                    'request': 0x22,
-                    'value': 0x01,
-                    'index': this.ifNum
-                })
-            }).then(() => {
-                console.log("Ready!");
-                this.ready = true;
-                this.device = device;
-                resolve();
-            }).catch((error) => {
-                reject(error);
-            });
+
+        const pick = reuse
+            ? Communication.grantedPort().then((granted) => granted || Communication.requestPort())
+            : Communication.requestPort();
+
+        let device = null;
+
+        return withTimeout(pick, "Choosing a device").then((dev) => {
+            console.log("Opening device...");
+            device = dev;
+            this.device = device;
+            return withTimeout(dev.opened ? Promise.resolve() : dev.open(), "Opening the device");
+        }).then(() => {
+            console.log("Selecting configuration");
+            if (device.configuration && device.configuration.configurationValue === 1) {
+                return undefined;
+            }
+            return withTimeout(device.selectConfiguration(1), "Selecting the configuration");
+        }).then(() => {
+            console.log("Getting endpoints");
+            this.getEndpoints(device.configuration.interfaces);
+            if (this.ifNum === undefined) {
+                throw new Error("No vendor interface on this device");
+            }
+            return undefined;
+        }).then(() => {
+            console.log("Claiming interface");
+            return withTimeout(device.claimInterface(this.ifNum), "Claiming the interface");
+        }).then(() => {
+            console.log("Select alt interface");
+            return withTimeout(device.selectAlternateInterface(this.ifNum, 0), "Selecting the interface");
+        }).then(() => {
+            console.log("Control Transfer Out");
+            return withTimeout(device.controlTransferOut({
+                'requestType': 'class',
+                'recipient': 'interface',
+                'request': 0x22,
+                'value': 0x01,
+                'index': this.ifNum
+            }), "Opening the channel");
+        }).then(() => {
+            console.log("Ready!");
+            this.ready = true;
+            this.device = device;
         });
     }
-
 
     executeCommand(command, payload, readBytes = 0) {
         return new Promise((resolve, reject) => {
@@ -192,8 +231,12 @@ class Communication {
 
     // Returned when the device info cannot be read or parsed. This command is
     // documented as never rejecting.
+    // Returned when the device info could not be read. `unknown` marks it as
+    // "we don't know" rather than "version 0.0.0", which would otherwise read
+    // as older than any minimum and trigger a spurious upgrade prompt.
     static defaultDeviceInfo() {
         return {
+            unknown: true,
             featureStep: 0,
             hwVersion: 1,
             swVersion: {
@@ -205,6 +248,25 @@ class Communication {
                 gitDirty: false
             },
         };
+    }
+
+    readBuildNameCommand() {
+        return new Promise((resolve, reject) => {
+            // Command 12 only exists on firmware 1.0.1 and newer; older
+            // cartridges answer 0xFF and executeCommand rejects.
+            this.executeCommand(12, null, 12).then(result => {
+                try {
+                    const bytes = new Uint8Array(result);
+                    const end = bytes.indexOf(0);
+                    const name = new TextDecoder("utf-8")
+                        .decode(bytes.slice(0, end === -1 ? bytes.length : end));
+                    resolve(name);
+                }
+                catch (e) {
+                    reject(e);
+                }
+            }, error => reject(error));
+        });
     }
 
     readDeviceInfoCommand() {

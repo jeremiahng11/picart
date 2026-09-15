@@ -155,3 +155,94 @@ test('close is safe to call twice', async () => {
     await comm.close();
     await expect(comm.close()).resolves.toBeUndefined();
 });
+
+// --- opening the device ---
+
+function fakeUsb({ granted = [], onRequest, device } = {}) {
+  const dev = device || {
+    opened: false,
+    configuration: { configurationValue: 1, interfaces: [] },
+    open: () => Promise.resolve(),
+    selectConfiguration: () => Promise.resolve(),
+    claimInterface: () => Promise.resolve(),
+    selectAlternateInterface: () => Promise.resolve(),
+    controlTransferOut: () => Promise.resolve({ status: 'ok' }),
+  };
+
+  global.navigator.usb = {
+    getDevices: () => Promise.resolve(granted),
+    requestDevice: onRequest || (() => Promise.resolve(dev)),
+  };
+
+  return dev;
+}
+
+function withEndpoints(comm) {
+  // The real one reads them off the descriptors; the fake device has none.
+  comm.getEndpoints = () => {
+    comm.ifNum = 0;
+    comm.epIn = 1;
+    comm.epOut = 2;
+  };
+  return comm;
+}
+
+test('a device the browser already granted is reopened without prompting', async () => {
+  let prompted = false;
+  const dev = fakeUsb({ onRequest: () => { prompted = true; return Promise.resolve({}); } });
+  global.navigator.usb.getDevices = () => Promise.resolve([{ ...dev, vendorId: 0x2e8a, productId: 0x107f }]);
+
+  const comm = withEndpoints(new Communication());
+  await comm.getDevice();
+
+  expect(prompted).toBe(false);
+  expect(comm.ready).toBe(true);
+});
+
+test('with nothing granted it asks for a device', async () => {
+  let prompted = false;
+  const dev = fakeUsb();
+  global.navigator.usb.requestDevice = () => { prompted = true; return Promise.resolve(dev); };
+
+  const comm = withEndpoints(new Communication());
+  await comm.getDevice();
+
+  expect(prompted).toBe(true);
+});
+
+test('a device with no vendor interface is refused rather than half opened', async () => {
+  fakeUsb();
+  const comm = new Communication();
+  comm.getEndpoints = () => { };
+
+  await expect(comm.getDevice()).rejects.toThrow(/vendor interface/i);
+});
+
+test('an already open device is not opened twice', async () => {
+  let opens = 0;
+  const dev = fakeUsb();
+  dev.opened = true;
+  dev.open = () => { opens += 1; return Promise.resolve(); };
+
+  const comm = withEndpoints(new Communication());
+  await comm.getDevice(false);
+
+  expect(opens).toBe(0);
+});
+
+test('a step that never settles is abandoned rather than hanging forever', async () => {
+  jest.useFakeTimers();
+
+  const dev = fakeUsb();
+  dev.open = () => new Promise(() => { });
+
+  const comm = withEndpoints(new Communication());
+  const attempt = comm.getDevice(false);
+  const assertion = expect(attempt).rejects.toThrow(/timed out/i);
+
+  await Promise.resolve();
+  jest.advanceTimersByTime(20000);
+  await assertion;
+
+  jest.useRealTimers();
+});

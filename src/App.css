@@ -295,6 +295,7 @@ body {
   .cart__label .footer a { color: var(--jkl-maroon); }
   .cart__label .footer { border-top-color: var(--border); }
   .cart__label .footer__dirty { background: var(--jkl-pink-soft); color: var(--jkl-maroon); }
+  .cart__label .footer__buildname { background: var(--jkl-maroon); color: #fff; }
   .cart__label .spinner { border-color: var(--border); border-top-color: var(--jkl-pink); }
 }
 
@@ -612,13 +613,24 @@ body {
 
 .footer__sep { opacity: 0.5; }
 
-.footer__dirty {
-  background: var(--jkl-pink-soft);
-  color: var(--jkl-maroon);
+.footer__dirty,
+.footer__buildname {
   border-radius: 999px;
   padding: 0.0625rem 0.5rem;
   font-size: 0.6875rem;
   font-weight: 600;
+}
+
+.footer__dirty {
+  background: var(--jkl-pink-soft);
+  color: var(--jkl-maroon);
+}
+
+/* Same badge treatment as dirty, but its own colour: a release name is
+   information, not a warning. */
+.footer__buildname {
+  background: var(--jkl-maroon);
+  color: #fff;
 }
 
 /* ---- bootstrap overrides for the modals ---- */
@@ -712,7 +724,8 @@ body {
   padding-top: 0.625rem;
   font-size: 0.6875rem;
 }
-.cart__label .footer__dirty { font-size: 0.625rem; padding: 0 0.375rem; }
+.cart__label .footer__dirty,
+.cart__label .footer__buildname { font-size: 0.625rem; padding: 0 0.375rem; }
 
 .cart__label .hero__logo { max-width: 5rem; margin-bottom: 0.625rem; }
 .cart__label .hero__title { font-size: 1.0625rem; margin-bottom: 0.375rem; }
@@ -754,6 +767,7 @@ body {
 .cart__label .footer a:hover { color: #fff; }
 .cart__label .footer { border-top-color: rgba(255, 255, 255, 0.25); }
 .cart__label .footer__dirty { background: var(--jkl-pink); color: #fff; }
+.cart__label .footer__buildname { background: #fff; color: var(--jkl-pink); }
 .cart__label .spinner { border-color: rgba(255, 255, 255, 0.25); border-top-color: var(--jkl-pink); }
 
 .cart__label .topbar__name {
@@ -893,7 +907,8 @@ body {
   font-size: 0.4375rem;
 }
 
-.cart__label .footer__dirty {
+.cart__label .footer__dirty,
+.cart__label .footer__buildname {
   font-family: var(--pixel);
   font-size: 0.375rem;
   border-radius: 0;
