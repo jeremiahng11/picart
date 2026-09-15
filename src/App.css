@@ -215,7 +215,7 @@ body {
 
   /* Undo the night scene and its palette. */
   .scene,
-  .battle { display: none; }
+  .bs { display: none; }
 
   .cart__content {
     display: block;
@@ -936,118 +936,206 @@ body {
 
 /* ---- battle ----
  * Ornamental, so it sits in the scene layer behind the content and never takes
- * pointer events.
+ * pointer events. Units are positioned by percentage so the field scales with
+ * the label.
  */
 
-.battle {
+.bs {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 4%;
-  height: 46px;
+  bottom: 3%;
+  height: 52px;
   pointer-events: none;
 }
 
-.battle__row {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  height: 100%;
-  padding: 0 10%;
-}
-
-.battle__unit {
+.bs-unit {
+  position: absolute;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  transition: transform 0.18s ease, opacity 0.3s ease;
+  transform: translateX(-50%);
+  transition: left 0.16s linear;
 }
 
-.battle__unit--monster { flex-direction: column-reverse; }
+.bs-sprite { display: block; }
+.bs-sprite svg { display: block; height: 26px; width: auto; }
+.bs-unit--hero .bs-sprite svg { height: 30px; }
 
-.battle__sprite { display: block; }
-.battle__sprite svg { display: block; height: 26px; width: auto; }
-.battle__unit--monster .battle__sprite svg { height: 22px; }
+.bs-meters { display: flex; flex-direction: column; gap: 1px; }
 
-/* Lunge toward the opponent on the turn the unit swings. */
-.battle__unit--hero.is-attacking { transform: translateX(9px); }
-.battle__unit--monster.is-attacking { transform: translateX(-9px); }
-
-.battle__unit.is-hurt { animation: shake 0.22s steps(2) 2; }
-.battle__unit.is-hurt .battle__sprite { filter: brightness(2.2) saturate(0.2); }
-
-.battle__unit.is-dead {
-  opacity: 0;
-  transform: translateY(6px) scaleY(0.4);
-}
-
-@keyframes shake {
-  0% { transform: translateX(-2px); }
-  100% { transform: translateX(2px); }
-}
-
-.battle__meters {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.battle__bar {
+.bs-bar {
   display: block;
-  width: 26px;
   height: 3px;
   background: #0d0a1c;
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
-.battle__bar-fill {
+.bs-bar-fill {
   display: block;
   height: 100%;
-  transition: width 0.25s ease;
+  transition: width 0.2s ease;
 }
 
-.battle__drop {
-  align-self: flex-end;
-  margin-bottom: 2px;
-  animation: dropin 0.4s ease-out, bob 1.4s ease-in-out infinite 0.4s;
+/* ---- idle and travel animations, one per movement style ---- */
+
+.bs-move-walk.is-walk .bs-sprite { animation: bs-step 0.34s steps(2, end) infinite; }
+.bs-move-walk.is-idle .bs-sprite { animation: bs-breathe 1.6s ease-in-out infinite; }
+
+.bs-move-hop.is-walk .bs-sprite { animation: bs-hop 0.62s ease-in-out infinite; }
+.bs-move-hop.is-idle .bs-sprite { animation: bs-squash 1.5s ease-in-out infinite; }
+
+.bs-move-fly .bs-sprite { animation: bs-hover 0.9s ease-in-out infinite; }
+.bs-move-fly .bs-wing { animation: bs-flap 0.18s steps(2, end) infinite; transform-box: fill-box; }
+.bs-move-fly .bs-wing--l { transform-origin: 100% 50%; }
+.bs-move-fly .bs-wing--r { transform-origin: 0% 50%; }
+
+.bs-move-float .bs-sprite { animation: bs-drift 2.2s ease-in-out infinite; }
+
+.bs-legs { transform-box: fill-box; transform-origin: 50% 0%; }
+.is-walk .bs-legs { animation: bs-scuttle 0.22s steps(2, end) infinite; }
+
+@keyframes bs-step {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-2px); }
 }
 
-.battle__drop svg { display: block; height: 14px; width: auto; }
-
-@keyframes dropin {
-  from { transform: translateY(-14px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+@keyframes bs-breathe {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-1px) scaleY(1.03); }
 }
 
-@keyframes bob {
+@keyframes bs-hop {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  20% { transform: translateY(-9px) scale(0.9, 1.12); }
+  45% { transform: translateY(0) scale(1.12, 0.84); }
+  60% { transform: translateY(0) scale(1, 1); }
+}
+
+@keyframes bs-squash {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.06, 0.94); }
+}
+
+@keyframes bs-hover {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+  50% { transform: translateY(-5px); }
 }
 
-.battle__float {
+@keyframes bs-flap {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(0.35); }
+}
+
+@keyframes bs-drift {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  33% { transform: translateY(-4px) translateX(2px); }
+  66% { transform: translateY(-2px) translateX(-2px); }
+}
+
+@keyframes bs-scuttle {
+  from { transform: translateX(-1px); }
+  to { transform: translateX(1px); }
+}
+
+/* ---- attacking, being hit, dying ---- */
+
+.bs-hero-arm {
+  transform-box: fill-box;
+  transform-origin: 15% 75%;
+}
+
+.bs-unit--hero.is-attack .bs-hero-arm { animation: bs-swing 0.42s ease-out; }
+.bs-unit--hero.is-attack .bs-sprite { animation: bs-lunge 0.42s ease-out; }
+
+@keyframes bs-swing {
+  0% { transform: rotate(-18deg); }
+  35% { transform: rotate(-52deg); }
+  60% { transform: rotate(82deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes bs-lunge {
+  0%, 100% { transform: translateX(0); }
+  45% { transform: translateX(5px); }
+}
+
+.bs-unit:not(.bs-unit--hero).is-attack .bs-sprite { animation: bs-butt 0.4s ease-out; }
+
+@keyframes bs-butt {
+  0%, 100% { transform: translateX(0); }
+  40% { transform: translateX(-6px) rotate(-6deg); }
+}
+
+.bs-unit.is-hurt .bs-sprite {
+  animation: bs-shake 0.12s steps(2) 3;
+  filter: brightness(2.6) saturate(0.25);
+}
+
+@keyframes bs-shake {
+  from { transform: translateX(-2px); }
+  to { transform: translateX(2px); }
+}
+
+.bs-unit.is-dead {
+  animation: bs-die 0.7s ease-in forwards;
+}
+
+@keyframes bs-die {
+  0% { opacity: 1; transform: translateX(-50%) translateY(0) scaleY(1); }
+  30% { opacity: 1; transform: translateX(-50%) translateY(-6px) scaleY(1.1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(4px) scaleY(0.2); }
+}
+
+.bs-unit.is-dead .bs-meters { opacity: 0; }
+
+/* ---- loot and numbers ---- */
+
+.bs-drop {
   position: absolute;
-  bottom: 30px;
+  bottom: 2px;
+  transform: translateX(-50%);
+  animation: bs-dropin 0.4s ease-out, bs-bob 1.3s ease-in-out infinite 0.4s;
+}
+
+.bs-drop svg { display: block; height: 14px; width: auto; }
+
+@keyframes bs-dropin {
+  from { transform: translateX(-50%) translateY(-16px); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+@keyframes bs-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-3px); }
+}
+
+.bs-float {
+  position: absolute;
+  bottom: 34px;
+  transform: translateX(-50%);
   font-family: var(--pixel);
   font-size: 0.4375rem;
   text-shadow: 1px 1px 0 #0d0a1c;
-  animation: floatup 1.6s ease-out forwards;
+  animation: bs-floatup 1.5s ease-out forwards;
 }
 
-.battle__float--hero { left: 14%; }
-.battle__float--monster { right: 14%; }
-
-@keyframes floatup {
-  from { transform: translateY(6px); opacity: 0; }
-  30% { opacity: 1; }
-  to { transform: translateY(-14px); opacity: 0; }
+@keyframes bs-floatup {
+  from { transform: translateX(-50%) translateY(6px); opacity: 0; }
+  25% { opacity: 1; }
+  to { transform: translateX(-50%) translateY(-16px); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .battle__unit,
-  .battle__drop,
-  .battle__float { animation: none; }
+  .bs-unit,
+  .bs-sprite,
+  .bs-wing,
+  .bs-legs,
+  .bs-hero-arm,
+  .bs-drop,
+  .bs-float { animation: none; }
 }
 
 .cart__content::-webkit-scrollbar { width: 8px; }

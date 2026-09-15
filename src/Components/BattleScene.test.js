@@ -1,6 +1,6 @@
-import { step, initialState, HERO_MAX_HP, HERO_MAX_MP } from './BattleScene';
+import { step, initialState, spawnWave, MONSTERS, HERO_MAX_HP, HERO_MAX_MP } from './BattleScene';
 
-// The battle rolls dice, so every test pins Math.random to make a turn
+// The skirmish rolls dice, so tests pin Math.random to make a frame
 // deterministic.
 function withRandom(value, fn) {
   const real = Math.random;
@@ -12,109 +12,150 @@ function withRandom(value, fn) {
   }
 }
 
-test('the hero damages the monster on its turn', () => {
-  const before = withRandom(0.5, initialState);
-  const after = withRandom(0.5, () => step({ ...before, turn: 'hero' }));
+function heroAt(x, extra = {}) {
+  const base = withRandom(0.5, initialState);
+  return { ...base, hero: { ...base.hero, x, ...extra }, monsters: [], drops: [] };
+}
 
-  expect(after.monster.hp).toBeLessThan(before.monster.maxHp);
-  expect(after.monster.hurt).toBe(true);
-  expect(after.turn).toBe('monster');
+function monster(kind, x, extra = {}) {
+  const def = MONSTERS.find((m) => m.kind === kind);
+  return {
+    ...def, id: 1, hp: def.maxHp, x, face: -1,
+    state: 'walk', timer: 0, cooldown: 0, slot: 0, dead: false, ...extra,
+  };
+}
+
+test('there are seven kinds of monster, each with its own sprite key', () => {
+  expect(MONSTERS).toHaveLength(7);
+  expect(new Set(MONSTERS.map((m) => m.kind)).size).toBe(7);
 });
 
-test('the monster dies once its health runs out', () => {
-  const base = withRandom(0.5, initialState);
-  const after = withRandom(0.5, () =>
-    step({ ...base, turn: 'hero', monster: { ...base.monster, hp: 1 } }));
-
-  expect(after.monster.dead).toBe(true);
-  expect(after.monster.hp).toBe(0);
-  expect(after.monster.timer).toBeGreaterThan(0);
+test('the original hopping slime is still one of them', () => {
+  const slime = MONSTERS.find((m) => m.kind === 'slime');
+  expect(slime).toBeDefined();
+  expect(slime.move).toBe('hop');
 });
 
-test('a dead monster is replaced by a fresh one at full health', () => {
-  const base = withRandom(0.5, initialState);
-  const after = withRandom(0.5, () =>
-    step({ ...base, monster: { ...base.monster, hp: 0, dead: true, timer: 1 } }));
-
-  expect(after.monster.dead).toBe(false);
-  expect(after.monster.hp).toBe(after.monster.maxHp);
+test('a wave holds between one and three monsters', () => {
+  for (let i = 0; i < 80; i++) {
+    const wave = spawnWave();
+    expect(wave.length).toBeGreaterThanOrEqual(1);
+    expect(wave.length).toBeLessThanOrEqual(3);
+  }
 });
 
-test('a potion drop heals the hero and is consumed', () => {
-  const base = withRandom(0.5, initialState);
-  const after = withRandom(0.5, () => step({
-    ...base,
-    hero: { ...base.hero, hp: 5 },
-    monster: { ...base.monster, hp: 0, dead: true, timer: 1 },
-    drop: { kind: 'potion', label: '+HP', color: '#ff6b8a' },
-  }));
+test('monsters in a wave are fanned out rather than stacked', () => {
+  const wave = withRandom(0.9, spawnWave);
+  const xs = wave.map((m) => m.x);
+  expect(new Set(xs).size).toBe(xs.length);
+});
 
+test('the hero walks toward a monster that is out of reach', () => {
+  const state = { ...heroAt(16), monsters: [monster('skeleton', 90)] };
+  const after = withRandom(0.5, () => step(state));
+
+  expect(after.hero.state).toBe('walk');
+  expect(after.hero.x).toBeGreaterThan(16);
+  expect(after.hero.face).toBe(1);
+});
+
+test('the hero swings once the monster is within reach', () => {
+  const state = { ...heroAt(16), monsters: [monster('skeleton', 21)] };
+  const after = withRandom(0.5, () => step(state));
+
+  expect(after.hero.state).toBe('attack');
+  expect(after.monsters[0].hp).toBeLessThan(after.monsters[0].maxHp);
+});
+
+test('monsters are drawn toward the hero', () => {
+  const state = { ...heroAt(16, { cooldown: 99 }), monsters: [monster('spider', 90)] };
+  const after = withRandom(0.5, () => step(state));
+
+  expect(after.monsters[0].x).toBeLessThan(90);
+  expect(after.monsters[0].state).toBe('walk');
+});
+
+test('a monster dies when its health is spent', () => {
+  const state = { ...heroAt(16), monsters: [monster('slime', 20, { hp: 1 })] };
+  const after = withRandom(0.5, () => step(state));
+
+  expect(after.monsters[0].dead).toBe(true);
+  expect(after.monsters[0].hp).toBe(0);
+});
+
+test('a corpse leaves loot behind and the hero collects it by walking over it', () => {
+  const state = {
+    ...heroAt(40, { hp: 5, cooldown: 99 }),
+    monsters: [monster('slime', 40, { hp: 0, dead: true, state: 'dead', timer: 1 })],
+  };
+  const after = withRandom(0.1, () => step(state));
+
+  expect(after.monsters).toHaveLength(0);
   expect(after.hero.hp).toBeGreaterThan(5);
-  expect(after.drop).toBeNull();
+  expect(after.drops).toHaveLength(0);
 });
 
-test('a mana drop restores mp without exceeding the maximum', () => {
-  const base = withRandom(0.5, initialState);
-  const after = withRandom(0.5, () => step({
-    ...base,
-    hero: { ...base.hero, mp: HERO_MAX_MP - 1 },
-    monster: { ...base.monster, hp: 0, dead: true, timer: 1 },
-    drop: { kind: 'mana', label: '+MP', color: '#6bb6ff' },
-  }));
+test('loot out of the hero reach stays on the ground', () => {
+  const state = {
+    ...heroAt(10, { cooldown: 99 }),
+    monsters: [],
+    drops: [{ kind: 'coin', label: 'GOLD', color: '#ffd76b', id: 9, x: 80, born: 0 }],
+  };
+  const after = withRandom(0.9, () => step(state));
 
-  expect(after.hero.mp).toBe(HERO_MAX_MP);
+  expect(after.drops).toHaveLength(1);
 });
 
-test('the monster damages the hero on its turn', () => {
-  const base = withRandom(0.5, initialState);
-  const after = withRandom(0.5, () => step({ ...base, turn: 'monster' }));
-
-  expect(after.hero.hp).toBeLessThan(HERO_MAX_HP);
-  expect(after.hero.hurt).toBe(true);
-  expect(after.turn).toBe('hero');
-});
-
-test('the hero is knocked out at zero health', () => {
-  const base = withRandom(0.5, initialState);
-  const after = withRandom(0.99, () => step({
-    ...base,
-    turn: 'monster',
-    hero: { ...base.hero, hp: 1 },
-  }));
+test('the hero is knocked out when a monster lands the last hit', () => {
+  const state = {
+    ...heroAt(40, { hp: 1, cooldown: 99 }),
+    monsters: [monster('imp', 42)],
+  };
+  const after = withRandom(0.9, () => step(state));
 
   expect(after.hero.dead).toBe(true);
   expect(after.hero.hp).toBe(0);
   expect(after.floats.some((f) => f.text === 'K.O.')).toBe(true);
 });
 
-test('a knocked out hero revives at full health against a new monster', () => {
-  const base = withRandom(0.5, initialState);
-  const after = withRandom(0.5, () => step({
-    ...base,
-    hero: { ...base.hero, hp: 0, dead: true, timer: 1 },
-  }));
+test('a knocked out hero revives at full strength against a new wave', () => {
+  const base = heroAt(40, { hp: 0, dead: true, state: 'dead', respawn: 1 });
+  const after = withRandom(0.5, () => step(base));
 
   expect(after.hero.dead).toBe(false);
   expect(after.hero.hp).toBe(HERO_MAX_HP);
-  expect(after.monster.hp).toBe(after.monster.maxHp);
+  expect(after.hero.mp).toBe(HERO_MAX_MP);
+  expect(after.monsters.length).toBeGreaterThanOrEqual(1);
 });
 
-test('floating text is pruned instead of accumulating', () => {
-  const base = withRandom(0.5, initialState);
-  const stale = { ...base, tick: 50, floats: [{ id: 1, born: 1, text: '9', color: '#fff', side: 'hero' }] };
-  const after = withRandom(0.5, () => step(stale));
-
-  expect(after.floats.some((f) => f.id === 1)).toBe(false);
-});
-
-test('a full battle runs for many turns without breaking its invariants', () => {
-  let s = initialState();
-  for (let i = 0; i < 400; i++) {
+test('a cleared field brings in another wave', () => {
+  let s = { ...heroAt(50), monsters: [], waveGap: 0 };
+  for (let i = 0; i < 40 && s.monsters.length === 0; i++) {
     s = step(s);
+  }
+  expect(s.monsters.length).toBeGreaterThanOrEqual(1);
+});
+
+test('a long skirmish never breaks its invariants', () => {
+  let s = initialState();
+
+  for (let i = 0; i < 1200; i++) {
+    s = step(s);
+
     expect(s.hero.hp).toBeGreaterThanOrEqual(0);
     expect(s.hero.hp).toBeLessThanOrEqual(HERO_MAX_HP);
-    expect(s.monster.hp).toBeGreaterThanOrEqual(0);
-    expect(s.monster.hp).toBeLessThanOrEqual(s.monster.maxHp);
-    expect(s.floats.length).toBeLessThan(12);
+    expect(s.hero.mp).toBeLessThanOrEqual(HERO_MAX_MP);
+    expect(s.hero.x).toBeGreaterThanOrEqual(0);
+    expect(s.hero.x).toBeLessThanOrEqual(100);
+    expect(s.monsters.length).toBeLessThanOrEqual(6);
+    expect(s.floats.length).toBeLessThan(30);
+    expect(s.drops.length).toBeLessThan(20);
+
+    for (const m of s.monsters) {
+      expect(m.hp).toBeGreaterThanOrEqual(0);
+      expect(m.hp).toBeLessThanOrEqual(m.maxHp);
+      expect(m.x).toBeGreaterThanOrEqual(0);
+      expect(m.x).toBeLessThanOrEqual(100);
+    }
   }
 });
