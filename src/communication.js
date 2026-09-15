@@ -188,50 +188,64 @@ class Communication {
         }
     }
 
+    // Returned when the device info cannot be read or parsed. This command is
+    // documented as never rejecting.
+    static defaultDeviceInfo() {
+        return {
+            featureStep: 0,
+            hwVersion: 1,
+            swVersion: {
+                major: 0,
+                minor: 0,
+                patch: 0,
+                buildType: "E",
+                gitShort: 0,
+                gitDirty: false
+            },
+        };
+    }
+
     readDeviceInfoCommand() {
         return new Promise((resolve, reject) => {
             this.executeCommand(254, null, 11).then(result => {
-                var view = new DataView(result);
-                var res = {
-                    featureStep: view.getUint8(0),
-                    hwVersion: view.getUint8(1),
-                    swVersion: {
-                        major: view.getUint8(2),
-                        minor: view.getUint8(3),
-                        patch: view.getUint8(4),
-                        buildType: StringView.getString(view, 5, 1),
-                        gitShort: view.getUint32(6),
-                        gitDirty: view.getUint8(10) === 1 ? true : false
-                    },
-                };
+                try {
+                    var view = new DataView(result);
+                    var res = {
+                        featureStep: view.getUint8(0),
+                        hwVersion: view.getUint8(1),
+                        swVersion: {
+                            major: view.getUint8(2),
+                            minor: view.getUint8(3),
+                            patch: view.getUint8(4),
+                            buildType: StringView.getString(view, 5, 1),
+                            gitShort: view.getUint32(6),
+                            gitDirty: view.getUint8(10) === 1 ? true : false
+                        },
+                    };
 
-                this.featureStep = res.featureStep;
+                    this.featureStep = res.featureStep;
 
-                if (this.featureStep >= 2) {
-                    this.supportsSpeedChangeBankInfo = true;
+                    if (this.featureStep >= 2) {
+                        this.supportsSpeedChangeBankInfo = true;
+                    }
+
+                    if (this.featureStep >= 3) {
+                        this.supportsMbcInfo = true;
+                    }
+
+                    resolve(res);
                 }
-
-                if (this.featureStep >= 3) {
-                    this.supportsMbcInfo = true;
+                catch (e) {
+                    // Callers read this result without guarding, so a parse
+                    // failure falls back exactly as a transfer failure does
+                    // rather than leaving the promise unsettled.
+                    console.log("readDeviceInfoCommand() could not parse: " + e);
+                    resolve(Communication.defaultDeviceInfo());
                 }
-
-                resolve(res);
             },
                 error => {
                     console.log("readDeviceInfoCommand() " + error)
-                    var res = {
-                        featureStep: 0,
-                        hwVersion: 1,
-                        swVersion: {
-                            major: 0,
-                            minor: 0,
-                            patch: 0,
-                            buildType: "E",
-                            gitShort: 0,
-                            gitDirty: false
-                        },
-                    };
-                    resolve(res);
+                    resolve(Communication.defaultDeviceInfo());
                 });
         });
     }
@@ -255,13 +269,18 @@ class Communication {
     readRomUtilizationCommand() {
         return new Promise((resolve, reject) => {
             this.executeCommand(1, null, 5).then(result => {
-                var view = new DataView(result);
-                var res = {
-                    numRoms: view.getUint8(0),
-                    usedBanks: view.getUint16(1),
-                    maxBanks: view.getUint16(3)
-                };
-                resolve(res);
+                try {
+                    var view = new DataView(result);
+                    var res = {
+                        numRoms: view.getUint8(0),
+                        usedBanks: view.getUint16(1),
+                        maxBanks: view.getUint16(3)
+                    };
+                    resolve(res);
+                }
+                catch (e) {
+                    reject("Could not parse rom utilization: " + e);
+                }
             },
                 error => {
                     reject(error);
@@ -409,15 +428,20 @@ class Communication {
     receiveSavegameChunkCommand() {
         return new Promise((resolve, reject) => {
             this.executeCommand(7, null, 36).then(result => {
-                var view = new DataView(result);
-                var data = new Uint8Array(result);
-                var res = {
-                    bank: view.getUint16(0),
-                    chunk: view.getUint16(2),
-                    data: data.subarray(4, 36)
-                };
+                try {
+                    var view = new DataView(result);
+                    var data = new Uint8Array(result);
+                    var res = {
+                        bank: view.getUint16(0),
+                        chunk: view.getUint16(2),
+                        data: data.subarray(4, 36)
+                    };
 
-                resolve(res);
+                    resolve(res);
+                }
+                catch (e) {
+                    reject("Could not parse savegame chunk: " + e);
+                }
             },
                 error => {
                     reject(error);

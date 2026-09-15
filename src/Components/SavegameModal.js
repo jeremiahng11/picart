@@ -213,6 +213,14 @@ class SavegameModal extends React.Component {
             this.saveGameHasRtc = false;
             this.saveGameSize = 0;
 
+            // A ROM reporting no RAM banks would otherwise accept an empty file,
+            // transfer nothing, and report success.
+            if (this.saveGameArray.byteLength === 0) {
+                this.setState({ validSavegameLoaded: false });
+                this.props.onError("That savegame file is empty");
+                return;
+            }
+
             if (this.saveGameArray.byteLength === this.props.romInfo.numRamBanks * BANK_SIZE) {
                 this.setState({ validSavegameLoaded: true });
                 this.saveGameSize = this.saveGameArray.byteLength;
