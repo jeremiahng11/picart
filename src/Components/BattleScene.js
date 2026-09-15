@@ -1892,6 +1892,12 @@ export default function BattleScene() {
     <div className="bs" aria-hidden="true" data-phase={sceneAt(state.journey).phase}>
       <Scenery step={state.journey} />
 
+      {/* Ambience: after the scenery so it shows against it, before the field so
+          the fighters pass in front of it. */}
+      <span className="sprite sprite--shoot" />
+      <span className="sprite sprite--fly sprite--fly1" />
+      <span className="sprite sprite--fly sprite--fly2" />
+
       <div className="bs-field">
       {drops.map((d) => (
         <span

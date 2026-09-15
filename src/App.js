@@ -29,6 +29,8 @@ import './App.css';
 // filename; a CDN in front of the app cannot then serve a stale logo.
 import jklLogo from './assets/jkl_small.png';
 
+const FirmwareRepoURL = "https://github.com/jeremiahng11/picartfirmware";
+
 const MinimumFirmwareVersion = [0, 5, 2];
 
 function compareVersion(a, b) {
@@ -80,7 +82,8 @@ class GbCartridge extends React.Component {
   StateConnected = "Connected";
 
   static defaultProps = {
-    ReleasesURL: "https://github.com/shilga/rp2040-gameboy-cartridge-firmware/releases",
+    ReleasesURL: FirmwareRepoURL + "/releases",
+    FirmwareCommitURL: FirmwareRepoURL + "/commit/",
     WebappReleasesURL: "https://github.com/jeremiahng11/picart"
   };
 
@@ -362,9 +365,6 @@ class GbCartridge extends React.Component {
                 while the rom list moves. */}
             <div className="scene" aria-hidden="true">
               <BattleScene />
-              <span className="sprite sprite--shoot" />
-              <span className="sprite sprite--fly sprite--fly1" />
-              <span className="sprite sprite--fly sprite--fly2" />
             </div>
             <div className={"cart__content" + (solid ? " is-solid" : "")}>
               {content}
@@ -457,7 +457,10 @@ class GbCartridge extends React.Component {
       const free = max - used;
       const filled = max > 0 ? Math.min(100, (used / max) * 100) : 0;
       const sw = this.state.deviceInfo.swVersion;
-      const gitShort = sw.gitShort.toString(16);
+      // Pad to 7 digits: the firmware reports the short SHA as a number, so a
+      // hash with a leading zero (e.g. 0ffd383) would otherwise render and
+      // link as ffd383, which GitHub cannot resolve.
+      const gitShort = sw.gitShort.toString(16).padStart(7, "0");
 
       return this.inCartridge(
         <div className="app">
@@ -550,7 +553,7 @@ class GbCartridge extends React.Component {
             <a
               target="_blank"
               rel="noopener noreferrer"
-              href={"https://github.com/shilga/rp2040-gameboy-cartridge-firmware/commit/" + gitShort}
+              href={this.props.FirmwareCommitURL + gitShort}
             >
               {gitShort}
             </a>

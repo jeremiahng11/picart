@@ -224,3 +224,21 @@ test('a refresh that was not an upload announces nothing', async () => {
 
   expect(screen.queryByText(/uploaded/i)).not.toBeInTheDocument();
 });
+
+test('the fireflies drift behind the fighters, not over them', () => {
+  const { container } = renderConnected();
+
+  const nodes = Array.from(container.querySelectorAll('.sc, .sprite, .bs-field'));
+  const order = nodes.map((n) => (
+    n.classList.contains('sc') ? 'scenery'
+      : n.classList.contains('bs-field') ? 'field'
+        : 'ambience'
+  ));
+
+  // Painting order is document order here, so the scenery must come first, the
+  // ambience next, and the fighters last.
+  expect(order[0]).toBe('scenery');
+  expect(order[order.length - 1]).toBe('field');
+  expect(order.filter((o) => o === 'ambience').length).toBeGreaterThan(0);
+  expect(order.indexOf('ambience')).toBeLessThan(order.indexOf('field'));
+});
