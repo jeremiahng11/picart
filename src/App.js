@@ -286,7 +286,19 @@ class GbCartridge extends React.Component {
     this.readDeviceStatus();
   };
 
-  refreshDeviceStatus = async () => {
+  refreshDeviceStatus = async (uploadedName) => {
+    if (uploadedName) {
+      toast.success("\"" + uploadedName + "\" uploaded", {
+        position: "top-right",
+        autoClose: 4000,
+        hideProgressBar: true,
+        closeOnClick: true,
+        draggable: false,
+        progress: undefined,
+        theme: "light",
+      });
+    }
+
     this.setState({ state: this.StateRetrievingInfo });
 
     this.readDeviceStatus();

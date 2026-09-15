@@ -49,6 +49,14 @@ class SavegameModal extends React.Component {
     saveGameSize = 0;
     saveGameHasRtc = false;
 
+    transferPercent() {
+        const total = this.state.bytesToTransfer;
+        if (!total) {
+            return 0;
+        }
+        return Math.min(100, Math.round((this.state.bytesTransferred / total) * 100));
+    }
+
     onEnterHandler() {
         // this.setState({validRomLoaded: false});
     }
@@ -274,7 +282,14 @@ class SavegameModal extends React.Component {
                             </Form.Group>
                         </Form>
 
-                        {(this.state.downloadInProgress || this.state.uploadInProgress) && <ProgressBar animated={false} now={this.state.bytesTransferred} max={this.state.bytesToTransfer} />}
+                        {(this.state.downloadInProgress || this.state.uploadInProgress) && (
+                            <ProgressBar
+                                animated={false}
+                                now={this.state.bytesTransferred}
+                                max={this.state.bytesToTransfer}
+                                label={this.transferPercent() + "%"}
+                            />
+                        )}
                     </Modal.Body>
                     <Modal.Footer>
                         <Button onClick={() => this.savegameUploadButtonHandler()} disabled={!this.state.validSavegameLoaded || this.state.downloadInProgress || this.state.uploadInProgress}>Upload Savegame RAM</Button>

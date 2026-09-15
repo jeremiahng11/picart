@@ -174,6 +174,14 @@ class AddNewRomModal extends React.Component {
         reader.readAsArrayBuffer(fileObj);
     }
 
+    uploadPercent() {
+        const banks = this.state.romInfo.banks;
+        if (!banks) {
+            return 0;
+        }
+        return Math.min(100, Math.round((this.state.uploadedBank / banks) * 100));
+    }
+
     async romUploadButtonHandler() {
         if (this.state.romInfo.name === "") {
             this.props.onError("ROM name must not be empty!");
@@ -205,13 +213,13 @@ class AddNewRomModal extends React.Component {
                     await this.props.comm.sendRomChunkCommand(bank, chunk, this.rom.subarray((bank * BANK_SIZE) + (chunk * CHUNK_SIZE), (bank * BANK_SIZE) + ((chunk + 1) * CHUNK_SIZE)));
                     console.log("Bank " + bank + " chunk " + chunk);
                 }
-                this.setState({ uploadedBank: bank });
+                this.setState({ uploadedBank: bank + 1 });
             }
 
             console.log("Upload finished");
             this.setState({ uploadInProgress: false });
 
-            this.props.onRomAdded();
+            this.props.onRomAdded(this.state.romInfo.name);
         } catch (e) {
             this.props.onError("Uploading the ROM failed");
             this.setState({ uploadInProgress: false });
@@ -252,7 +260,14 @@ class AddNewRomModal extends React.Component {
                         </Form.Group>
                     </Form>
 
-                    {this.state.uploadInProgress && <ProgressBar animated={this.state.uploadRequestInProgress} now={this.state.uploadedBank} max={this.state.romInfo.banks} />}
+                    {this.state.uploadInProgress && (
+                      <ProgressBar
+                        animated={this.state.uploadRequestInProgress}
+                        now={this.state.uploadRequestInProgress ? this.state.romInfo.banks : this.state.uploadedBank}
+                        max={this.state.romInfo.banks}
+                        label={this.state.uploadRequestInProgress ? "Preparing..." : this.uploadPercent() + "%"}
+                      />
+                    )}
                 </Modal.Body>
                 <Modal.Footer>
                     <Button onClick={this.props.onHide} disabled={this.state.uploadInProgress}>Close</Button>

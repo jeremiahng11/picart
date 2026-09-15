@@ -43,7 +43,7 @@ function renderConnected(overrides = {}) {
     });
   });
 
-  return view;
+  return { ...view, ref };
 }
 
 test('lists each rom with its metadata', () => {
@@ -180,4 +180,47 @@ test('disconnecting says so', async () => {
   });
 
   expect(await screen.findByText(/cartridge disconnected/i)).toBeInTheDocument();
+});
+
+
+test('a finished upload is announced by name', async () => {
+  const { ref } = renderConnected();
+
+  // The refresh that follows an upload talks to the cartridge, so it is given
+  // something to talk to.
+  ref.current.comm = {
+    readDeviceInfoCommand: async () => ({
+      featureStep: 3,
+      swVersion: { major: 0, minor: 5, patch: 2, buildType: 'R', gitShort: 1, gitDirty: false },
+    }),
+    readDeviceSerialId: async () => 'ABC123',
+    readRomUtilizationCommand: async () => ({ numRoms: 0, usedBanks: 0, maxBanks: 512 }),
+    readRomInfoCommand: async () => ({}),
+  };
+
+  await act(async () => {
+    await ref.current.refreshDeviceStatus('POKEMON RED');
+  });
+
+  expect(await screen.findByText(/POKEMON RED.*uploaded/i)).toBeInTheDocument();
+});
+
+test('a refresh that was not an upload announces nothing', async () => {
+  const { ref } = renderConnected();
+
+  ref.current.comm = {
+    readDeviceInfoCommand: async () => ({
+      featureStep: 3,
+      swVersion: { major: 0, minor: 5, patch: 2, buildType: 'R', gitShort: 1, gitDirty: false },
+    }),
+    readDeviceSerialId: async () => 'ABC123',
+    readRomUtilizationCommand: async () => ({ numRoms: 0, usedBanks: 0, maxBanks: 512 }),
+    readRomInfoCommand: async () => ({}),
+  };
+
+  await act(async () => {
+    await ref.current.refreshDeviceStatus();
+  });
+
+  expect(screen.queryByText(/uploaded/i)).not.toBeInTheDocument();
 });
