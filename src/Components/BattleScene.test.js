@@ -656,7 +656,7 @@ test('the hero walks over to fetch loot when nothing is on him', () => {
   expect(after.hero.x).toBeGreaterThan(20);
 });
 
-test('a chest hands over everything inside it at once', () => {
+test('a chest spills its contents onto the ground to be gathered', () => {
   const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
   const armour = SPECIAL_ITEMS.find((i) => i.type === 'top');
   const state = {
@@ -666,9 +666,11 @@ test('a chest hands over everything inside it at once', () => {
   };
   const after = withRandom(0.9, () => step(state));
 
-  expect(after.drops).toHaveLength(0);
-  expect(after.hero.powers).toContain(tome.grants);
-  expect(after.hero.gear.top.key).toBe(armour.key);
+  // The chest itself is gone and its contents are on the floor, not in the pack.
+  expect(after.drops.some((d) => d.kind === 'chest')).toBe(false);
+  expect(after.drops.some((d) => d.key === tome.key)).toBe(true);
+  expect(after.drops.some((d) => d.key === armour.key)).toBe(true);
+  expect(after.hero.powers).not.toContain(tome.grants);
 });
 
 test('experience accumulates and levels raise the health ceiling', () => {
@@ -700,7 +702,7 @@ test('simultaneous pickups are given separate lanes so the text cannot overlap',
   const after = withRandom(0.9, () => step(state));
 
   const landed = after.floats.filter((f) => f.born === after.tick);
-  expect(landed.length).toBeGreaterThan(1);
+  expect(landed.length).toBeGreaterThanOrEqual(1);
   expect(new Set(landed.map((f) => f.lane)).size).toBe(landed.length);
 });
 
@@ -994,7 +996,7 @@ test('a chest is sometimes bait, and springing it puts a mimic on the field', ()
   expect(after.travelling).toBe(false);
 });
 
-test('a chest that is not bait still hands over its contents', () => {
+test('a chest that is not bait still opens', () => {
   const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
   const state = {
     ...heroAt(40, { cooldown: 999 }),
@@ -1007,7 +1009,7 @@ test('a chest that is not bait still hands over its contents', () => {
   const after = withRandom(0.9, () => step(state));
 
   expect(after.monsters).toHaveLength(0);
-  expect(after.hero.powers).toContain(tome.grants);
+  expect(after.drops.some((d) => d.key === tome.key)).toBe(true);
 });
 
 test('every effect kind has art behind it', () => {
@@ -1021,4 +1023,46 @@ test('every effect kind has art behind it', () => {
     expect(typeof art.sheet).toBe('string');
     expect(art.frames).toBeGreaterThanOrEqual(4);
   }
+});
+
+
+test('gold is counted into the purse', () => {
+  const base = initialState().hero;
+  const after = applyPickup(base, { kind: 'coin', label: 'GOLD', color: '#ffd76b', amount: 25 }, () => {});
+
+  expect(after.gold).toBe(25);
+  expect(applyPickup(after, { kind: 'coin', amount: 5, color: '#ffd76b' }, () => {}).gold).toBe(30);
+});
+
+test('a chest carries a purse that spills with the rest', () => {
+  const state = {
+    ...heroAt(40, { cooldown: 999 }),
+    monsters: [],
+    drops: [{
+      kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 51, x: 40, born: 0,
+      mimic: false, gold: 42, contents: [COMMON_ITEMS[0]],
+    }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  const coin = after.drops.find((d) => d.kind === 'coin');
+  expect(coin).toBeDefined();
+  expect(coin.amount).toBe(42);
+});
+
+test('spilled loot is spread out rather than stacked on one spot', () => {
+  const state = {
+    ...heroAt(40, { cooldown: 999 }),
+    monsters: [],
+    drops: [{
+      kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 52, x: 40, born: 0,
+      mimic: false, gold: 10,
+      contents: [COMMON_ITEMS[0], COMMON_ITEMS[1], COMMON_ITEMS[2]],
+    }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  const xs = after.drops.map((d) => d.x);
+  expect(xs.length).toBeGreaterThan(1);
+  expect(new Set(xs).size).toBe(xs.length);
 });

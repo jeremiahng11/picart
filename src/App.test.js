@@ -127,4 +127,5 @@ test('equipment slots are listed with their fallbacks when nothing is found yet'
   expect(screen.getByText('NONE')).toBeInTheDocument();
   expect(screen.getByText('BARE HEAD')).toBeInTheDocument();
   expect(screen.getByText(/LV 1 \/ 99/)).toBeInTheDocument();
+  expect(screen.getByText('GOLD')).toBeInTheDocument();
 });

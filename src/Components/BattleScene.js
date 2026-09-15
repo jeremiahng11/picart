@@ -442,6 +442,13 @@ export function choosePower(known, mp, roll = Math.random()) {
 export function applyPickup(hero, entry, push) {
   const next = { ...hero, bag: hero.bag.concat(entry.key || entry.kind) };
 
+  if (entry.kind === "coin") {
+    const amount = entry.amount || 1;
+    next.gold = (next.gold || 0) + amount;
+    push("+" + amount + "G", entry.color);
+    return next;
+  }
+
   if (entry.kind === "potion" || entry.kind === "mana") {
     const full = entry.kind === "potion" ? next.hp >= next.maxHp : next.mp >= next.maxMp;
 
@@ -556,6 +563,7 @@ export function initialState() {
       xp: 0,
       gear: { weapon: STARTER_WEAPON, shield: null, helm: null, top: null, legs: null, boots: null, gloves: null },
       inventory: [],
+      gold: 0,
       powers: BASE_POWERS.slice(),
       bag: [],
       face: 1,
@@ -715,12 +723,16 @@ export function step(prev) {
       drops = drops.concat({
         kind: "chest", name: "HOARD", color: "#ffd76b",
         id: id(), x: m.x, born: tick,
+        gold: 60 + Math.floor(Math.random() * 90),
         contents: rollChestContents().concat(pick(SPECIAL_ITEMS)),
       });
     } else if (Math.random() < DROP_CHANCE) {
       const loot = Math.random() < 0.4
         ? { ...pick(COMMON_ITEMS), kind: "item" }
         : { ...pick(DROPS) };
+      if (loot.kind === "coin") {
+        loot.amount = 3 + Math.floor(Math.random() * 12);
+      }
       drops = drops.concat({ ...loot, id: id(), x: m.x, born: tick });
     }
   }
@@ -739,6 +751,7 @@ export function step(prev) {
         x: clamp(FIELD_MIN + Math.random() * (FIELD_MAX - FIELD_MIN), FIELD_MIN, FIELD_MAX),
         born: tick,
         mimic: Math.random() < MIMIC_CHANCE,
+        gold: 10 + Math.floor(Math.random() * 40),
         contents: rollChestContents(),
       });
     }
@@ -995,6 +1008,7 @@ export function step(prev) {
     // not capture variables being reassigned each pass.
     const announced = [];
     let sprung = [];
+    let spilled = [];
 
     for (const d of drops) {
       if (Math.abs(d.x - hero.x) > PICKUP_RANGE || !worthTaking(hero, d)) {
@@ -1022,9 +1036,20 @@ export function step(prev) {
         push("MIMIC!", "#ff6b8a");
       } else if (d.kind === "chest") {
         push("CHEST", "#ffd76b");
-        for (const entry of d.contents) {
-          hero = applyPickup(hero, entry, push);
+
+        // The lid comes off and everything inside lands on the ground, so he
+        // has to gather it rather than absorbing it through the lid.
+        const spill = d.contents.slice();
+        if (d.gold) {
+          spill.push({ kind: "coin", label: "GOLD", color: "#ffd76b", amount: d.gold });
         }
+        const mid = (spill.length - 1) / 2;
+        spilled = spilled.concat(spill.map((entry, i) => ({
+          ...entry,
+          id: id(),
+          x: clamp(d.x + (i - mid) * 7, FIELD_MIN, FIELD_MAX),
+          born: tick,
+        })));
       } else {
         hero = applyPickup(hero, d, push);
       }
@@ -1040,7 +1065,7 @@ export function step(prev) {
       travelling = false;
     }
 
-    drops = kept;
+    drops = kept.concat(spilled);
   }
 
   return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft };
@@ -1405,6 +1430,7 @@ function StatusSheet({ hero, onClose }) {
               <dt>ATK</dt><dd>{3 + hero.weapon} - {6 + hero.weapon}</dd>
               <dt>DEF</dt><dd>{hero.defence}</dd>
               <dt>SPD</dt><dd>{hero.speed.toFixed(1)}</dd>
+              <dt>GOLD</dt><dd>{hero.gold || 0}</dd>
             </dl>
 
             <Slot label="WEAPON" item={hero.gear.weapon} fallback="BARE HANDS" />
