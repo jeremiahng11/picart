@@ -242,7 +242,7 @@ class GbCartridge extends React.Component {
       setTimeout(() => {
         toast.info(this.NewFirmwareNotification, {
           position: "top-right",
-          autoClose: 0,
+          autoClose: false,
           hideProgressBar: true,
           closeOnClick: true,
           draggable: false,
@@ -257,7 +257,7 @@ class GbCartridge extends React.Component {
       setTimeout(() => {
         toast.warning("The cartridge firmware might be too new!", {
           position: "top-right",
-          autoClose: 0,
+          autoClose: false,
           hideProgressBar: true,
           closeOnClick: true,
           draggable: false,
@@ -391,7 +391,7 @@ class GbCartridge extends React.Component {
   displayError = (error) => {
     toast.error(error, {
       position: "top-right",
-      autoClose: 0,
+      autoClose: false,
       hideProgressBar: true,
       closeOnClick: true,
       draggable: false,
