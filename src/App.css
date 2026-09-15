@@ -84,17 +84,76 @@ body {
   top: 28.5%;
   width: 74.9%;
   height: 58.1%;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 0.875rem 1rem;
-  background: linear-gradient(180deg, #ffffff 0%, #fcfafb 100%);
+  overflow: hidden;
   border-radius: 5px;
   box-shadow:
-    0 0 0 1px rgba(36, 26, 31, 0.10),
-    0 2px 4px rgba(36, 26, 31, 0.30),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    0 0 0 1px rgba(36, 26, 31, 0.25),
+    0 2px 4px rgba(36, 26, 31, 0.35);
+
+  /* Palette is redeclared here rather than globally, so the components inherit
+     a dark scheme inside the label while the small-screen layout keeps the
+     light one. */
+  --text: #f6f2ff;
+  --muted: #b6a9dd;
+  --border: #ffffff;
+  --surface: rgba(20, 14, 38, 0.86);
+  color: var(--text);
+
+  /* A night scene, built from gradient layers so it costs no extra requests:
+     moon, three star fields, a horizon glow and the ground. */
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px),
+    radial-gradient(circle at 80% 16%, #fdf4d0 0 6px, rgba(253, 244, 208, 0.25) 6px 9px, transparent 9px),
+    radial-gradient(1px 1px at 18px 24px, #ffffff 50%, transparent 50%),
+    radial-gradient(1px 1px at 96px 14px, #ffe6f3 50%, transparent 50%),
+    radial-gradient(1px 1px at 142px 58px, #d7e9ff 50%, transparent 50%),
+    radial-gradient(1px 1px at 52px 78px, #ffffff 50%, transparent 50%),
+    radial-gradient(1px 1px at 120px 104px, #ffd9ec 50%, transparent 50%),
+    radial-gradient(1px 1px at 30px 130px, #ffffff 50%, transparent 50%),
+    radial-gradient(ellipse 120% 40% at 50% 100%, rgba(215, 51, 115, 0.45) 0%, transparent 70%),
+    linear-gradient(0deg, #150c2b 0 18%, transparent 18%),
+    linear-gradient(180deg, #0f0a20 0%, #201542 48%, #35205a 76%, #1a1030 100%);
+  background-size:
+    100% 100%,
+    100% 100%,
+    170px 150px, 170px 150px, 170px 150px,
+    210px 190px, 210px 190px, 210px 190px,
+    100% 100%, 100% 100%, 100% 100%;
+  background-repeat:
+    repeat,
+    no-repeat,
+    repeat, repeat, repeat,
+    repeat, repeat, repeat,
+    no-repeat, no-repeat, no-repeat;
+  animation: drift 90s linear infinite;
+}
+
+.cart__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.75rem 0.875rem;
+}
+
+/* Two star fields at different sizes move at different rates, which reads as
+   parallax. */
+@keyframes drift {
+  to {
+    background-position:
+      0 0,
+      0 0,
+      -170px 0, -170px 0, -170px 0,
+      110px 0, 110px 0, 110px 0,
+      0 0, 0 0, 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cart__label { animation: none; }
 }
 
 /* Below this the recess is too small to hold the UI, so the shell is dropped
@@ -151,7 +210,38 @@ body {
   .cart__label .meter { height: 0.625rem; padding: 0; border: 0; border-radius: 999px; }
   .cart__label .meter__fill { border-radius: 999px; background: linear-gradient(90deg, var(--jkl-pink), var(--jkl-maroon)); }
   .cart__label .btn-jkl { font-family: inherit; font-size: 1rem; border: 0; border-radius: var(--radius-sm); box-shadow: none; }
-  .cart__label .iconbtn { border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: none; }
+  .cart__label .iconbtn { border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: none; background: var(--surface); color: var(--jkl-maroon); }
+  .cart__label .iconbtn--danger { color: var(--danger); }
+
+  /* Undo the night scene and its palette. */
+  .scene { display: none; }
+
+  .cart__content {
+    display: block;
+    height: auto;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .cart__label {
+    --text: #241a1f;
+    --muted: #7b6a72;
+    --border: #e9e0e4;
+    --surface: #ffffff;
+    color: var(--text);
+    background: none;
+    animation: none;
+  }
+
+  .cart__label .panel,
+  .cart__label .rom,
+  .cart__label .roms__empty { background: var(--surface); backdrop-filter: none; }
+  .cart__label .rom:hover { background: var(--surface); transform: none; box-shadow: var(--shadow); }
+  .cart__label .hero a,
+  .cart__label .footer a { color: var(--jkl-maroon); }
+  .cart__label .footer { border-top-color: var(--border); }
+  .cart__label .footer__dirty { background: var(--jkl-pink-soft); color: var(--jkl-maroon); }
+  .cart__label .spinner { border-color: var(--border); border-top-color: var(--jkl-pink); }
 }
 
 .app {
@@ -526,7 +616,7 @@ body {
  * inside it is stepped down to fit without scrolling for a typical cartridge.
  */
 
-.cart__label { font-size: 0.8125rem; padding: 0.75rem 0.875rem; }
+.cart__label { font-size: 0.8125rem; }
 
 .cart__label .topbar {
   gap: 0.5rem;
@@ -580,7 +670,7 @@ body {
 
 .cart__label .panel,
 .cart__label .rom,
-.cart__label .roms__empty { background: #faf7f8; }
+.cart__label .roms__empty { background: var(--surface); }
 
 
 /* ---- arcade treatment inside the label ----
@@ -603,6 +693,15 @@ body {
   filter: brightness(0) invert(1);
 }
 
+.cart__label .hero a,
+.cart__label .footer a { color: #ffb3d4; }
+.cart__label .hero a:hover,
+.cart__label .footer a:hover { color: #fff; }
+.cart__label .footer { border-top-color: rgba(255, 255, 255, 0.25); }
+.cart__label .topbar { border-bottom-color: #2c1f4e; }
+.cart__label .footer__dirty { background: var(--jkl-pink); color: #fff; }
+.cart__label .spinner { border-color: rgba(255, 255, 255, 0.25); border-top-color: var(--jkl-pink); }
+
 .cart__label .topbar__name {
   font-family: var(--pixel);
   font-size: 0.5rem;
@@ -617,9 +716,10 @@ body {
 }
 
 .cart__label .panel {
-  border: 2px solid var(--text);
+  border: 2px solid var(--border);
   border-radius: 0;
-  box-shadow: 3px 3px 0 rgba(36, 26, 31, 0.14);
+  box-shadow: 0 0 0 2px #2c1f4e, 3px 3px 0 rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(1px);
 }
 
 .cart__label .storage__count {
@@ -632,8 +732,8 @@ body {
 .cart__label .meter {
   height: 0.8125rem;
   padding: 2px;
-  background: #efe6ea;
-  border: 2px solid var(--text);
+  background: #1a1030;
+  border: 2px solid var(--border);
   border-radius: 0;
 }
 
@@ -647,16 +747,17 @@ body {
 }
 
 .cart__label .rom {
-  background: #fff;
-  border: 2px solid var(--text);
+  border: 2px solid var(--border);
   border-radius: 0;
-  box-shadow: 3px 3px 0 rgba(36, 26, 31, 0.16);
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  box-shadow: 0 0 0 2px #2c1f4e, 3px 3px 0 rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(1px);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.08s ease;
 }
 
 .cart__label .rom:hover {
+  background: rgba(58, 30, 72, 0.92);
   transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 rgba(36, 26, 31, 0.22);
+  box-shadow: 0 0 0 2px var(--jkl-pink), 4px 4px 0 rgba(0, 0, 0, 0.5);
 }
 
 .cart__label .rom__name {
@@ -676,9 +777,9 @@ body {
 .cart__label .rom:hover .pixcart { color: var(--jkl-maroon); }
 
 .cart__label .roms__empty {
-  border: 2px dashed var(--text);
+  border: 2px dashed var(--border);
   border-radius: 0;
-  opacity: 0.75;
+  color: var(--muted);
 }
 
 /* Chunky buttons that physically depress. */
@@ -696,10 +797,21 @@ body {
 }
 
 .cart__label .iconbtn {
-  border: 2px solid var(--text);
+  background: rgba(38, 24, 66, 0.9);
+  color: #ffd9ec;
+  border: 2px solid var(--border);
   border-radius: 0;
-  box-shadow: 2px 2px 0 rgba(36, 26, 31, 0.2);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
 }
+
+.cart__label .iconbtn:hover:not(:disabled) {
+  background: var(--jkl-pink);
+  color: #fff;
+  border-color: #fff;
+}
+
+.cart__label .iconbtn--danger { color: #ff9a8f; }
+.cart__label .iconbtn--danger:hover:not(:disabled) { background: #c0392b; }
 
 .cart__label .iconbtn:active:not(:disabled) {
   transform: translate(2px, 2px);
@@ -726,8 +838,103 @@ body {
   border-radius: 0;
 }
 
-.cart__label::-webkit-scrollbar { width: 8px; }
-.cart__label::-webkit-scrollbar-thumb {
+/* ---- sprites ---- */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 5px;
+}
+
+.sprite { position: absolute; display: block; }
+.sprite svg { display: block; width: 100%; height: 100%; }
+
+/* Hops along the ground band. The hop is a transform so it can run alongside
+   the left-to-right walk without the two fighting over one property. */
+.sprite--slime {
+  bottom: 7%;
+  width: 15px;
+  height: 11px;
+  color: #6ddf8e;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.45));
+  animation: walk 34s linear infinite, hop 0.85s ease-in-out infinite;
+}
+
+@keyframes walk {
+  from { left: -10%; }
+  to { left: 106%; }
+}
+
+@keyframes hop {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  25% { transform: translateY(-8px) scaleY(1.1); }
+  50% { transform: translateY(0) scaleY(0.84); }
+  62% { transform: translateY(0) scaleY(1); }
+}
+
+/* Flaps across the sky the other way, so the scene has movement at two depths. */
+.sprite--bat {
+  top: 20%;
+  width: 16px;
+  height: 10px;
+  color: #2a1b4a;
+  animation: flyacross 23s linear infinite, flap 0.28s steps(2, end) infinite;
+}
+
+@keyframes flyacross {
+  from { right: -12%; }
+  to { right: 108%; }
+}
+
+@keyframes flap {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(0.45); }
+}
+
+.sprite--shoot {
+  top: 14%;
+  left: -12%;
+  width: 30px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ffffff);
+  opacity: 0;
+  animation: shoot 11s linear infinite;
+}
+
+@keyframes shoot {
+  0% { opacity: 0; transform: translate(0, 0) rotate(22deg); }
+  3% { opacity: 1; }
+  11% { opacity: 0; transform: translate(300px, 120px) rotate(22deg); }
+  100% { opacity: 0; transform: translate(300px, 120px) rotate(22deg); }
+}
+
+.sprite--fly {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #ffe9a8;
+  box-shadow: 0 0 4px 1px rgba(255, 233, 168, 0.8);
+}
+
+.sprite--fly1 { bottom: 22%; left: 24%; animation: flit 7s ease-in-out infinite; }
+.sprite--fly2 { bottom: 15%; left: 68%; animation: flit 9s ease-in-out infinite reverse; }
+
+@keyframes flit {
+  0%, 100% { transform: translate(0, 0); opacity: 0.25; }
+  25% { transform: translate(14px, -10px); opacity: 1; }
+  50% { transform: translate(26px, 4px); opacity: 0.5; }
+  75% { transform: translate(10px, -14px); opacity: 0.9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprite { animation: none; }
+  .sprite--shoot { display: none; }
+}
+
+.cart__content::-webkit-scrollbar { width: 8px; }
+.cart__content::-webkit-scrollbar-thumb {
   background: rgba(36, 26, 31, 0.18);
   border-radius: 999px;
 }

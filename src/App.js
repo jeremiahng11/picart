@@ -314,7 +314,28 @@ class GbCartridge extends React.Component {
       <div className="stage">
         <div className="cart">
           <div className="cart__label">
-            {content}
+            {/* Sits outside the scrolling content so the sprites stay put
+                while the rom list moves. */}
+            <div className="scene" aria-hidden="true">
+              <span className="sprite sprite--slime">
+                <svg viewBox="0 0 8 6" shapeRendering="crispEdges">
+                  <path fill="currentColor" d="M3 0h2v1h1v1h1v4H0V2h1V1h2z" />
+                  <rect x="2" y="3" width="1" height="1" fill="#0d0a1c" />
+                  <rect x="5" y="3" width="1" height="1" fill="#0d0a1c" />
+                </svg>
+              </span>
+              <span className="sprite sprite--bat">
+                <svg viewBox="0 0 10 6" shapeRendering="crispEdges">
+                  <path fill="currentColor" d="M4 1h2v4H4zM2 2h2v2H2zM0 1h2v2H0zM6 2h2v2H6zM8 1h2v2H8z" />
+                </svg>
+              </span>
+              <span className="sprite sprite--shoot" />
+              <span className="sprite sprite--fly sprite--fly1" />
+              <span className="sprite sprite--fly sprite--fly2" />
+            </div>
+            <div className="cart__content">
+              {content}
+            </div>
           </div>
         </div>
       </div>
