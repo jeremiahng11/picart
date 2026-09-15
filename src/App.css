@@ -1126,6 +1126,13 @@ body {
 }
 
 .bs-drop svg { display: block; height: 14px; width: auto; }
+.bs-drop--chest svg { height: 18px; }
+.bs-drop--chest { animation: bs-dropin 0.4s ease-out, bs-shine 1.8s ease-in-out infinite 0.4s; }
+
+@keyframes bs-shine {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 4px #ffd76b) brightness(1.15); }
+}
 
 @keyframes bs-dropin {
   from { transform: translateX(-50%) translateY(-16px); opacity: 0; }

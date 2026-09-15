@@ -39,25 +39,7 @@ const HERO_COOLDOWN = 5;
 const CAST_TICKS = 4;
 const CAST_CHANCE = 0.55;
 const MP_REGEN_TICKS = 26;
-
-// Cost is a fraction of the full mana pool, so the three tiers are a third, two
-// thirds and the lot. The strongest is also the only one that catches every
-// monster on the field.
-export const POWERS = [
-  { key: "spark", name: "SPARK", fraction: 1 / 3, dmg: [7, 11], color: "#8fd7ff", aoe: false },
-  { key: "flame", name: "FLAME", fraction: 2 / 3, dmg: [14, 19], color: "#ffb36b", aoe: false },
-  { key: "nova", name: "NOVA", fraction: 3 / 3, dmg: [22, 30], color: "#ff6bd6", aoe: true },
-].map((p) => ({ ...p, cost: Math.round(p.fraction * HERO_MAX_MP) }));
-
-// The strongest the hero can currently afford, or nothing when mana is short.
-// He does not cast every opening, so the sword still gets used.
-export function choosePower(mp, roll = Math.random()) {
-  const affordable = POWERS.filter((p) => p.cost <= mp);
-  if (affordable.length === 0 || roll > CAST_CHANCE) {
-    return null;
-  }
-  return affordable[affordable.length - 1];
-}
+const CHEST_CHANCE = 0.45;
 
 const FIELD_MIN = 4;
 const FIELD_MAX = 94;
@@ -68,6 +50,8 @@ const FLOAT_LIFE = 9;
 const HURT_TICKS = 3;
 const ATTACK_TICKS = 3;
 const DEATH_TICKS = 5;
+const SPAWN_CLEARANCE = 15;
+const SPAWN_SPACING = 8;
 
 // move drives which idle animation the sprite gets: hoppers bounce, fliers
 // flap, floaters drift, walkers take steps.
@@ -81,11 +65,11 @@ export const MONSTERS = [
   { kind: "spider", color: "#a78bd6", maxHp: 9, dmg: [1, 5], speed: 1.6, reach: 6, cd: 5, move: "walk" },
 ];
 
+// Shed by monsters. Chests never contain these.
 const DROPS = [
   { kind: "potion", label: "+HP", color: "#ff6b8a" },
   { kind: "mana", label: "+MP", color: "#6bb6ff" },
   { kind: "coin", label: "GOLD", color: "#ffd76b" },
-  { kind: "relic", label: "RELIC", color: "#e6e0ff" },
 ];
 
 let nextId = 0;
@@ -105,9 +89,6 @@ function rollBetween([lo, hi]) {
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
-
-const SPAWN_CLEARANCE = 15;
-const SPAWN_SPACING = 8;
 
 // One to three at a time, anywhere on the field and on either side of the hero,
 // but never right on top of him or on each other.
@@ -149,13 +130,134 @@ export function spawnWave(heroX = 16) {
   return wave;
 }
 
+
+// Cost is a fraction of the full mana pool, so the three tiers are a third, two
+// thirds and the lot. The strongest is also the only one that catches every
+// monster on the field.
+export const POWERS = [
+  { key: "spark", name: "SPARK", tier: 1, dmg: [7, 11], color: "#8fd7ff", aoe: false, base: true },
+  { key: "frost", name: "FROST", tier: 1, dmg: [10, 14], color: "#bfe9ff", aoe: false, base: false },
+  { key: "flame", name: "FLAME", tier: 2, dmg: [14, 19], color: "#ffb36b", aoe: false, base: true },
+  { key: "quake", name: "QUAKE", tier: 2, dmg: [17, 23], color: "#d9a066", aoe: true, base: false },
+  { key: "nova", name: "NOVA", tier: 3, dmg: [22, 30], color: "#ff6bd6", aoe: true, base: true },
+  { key: "judge", name: "JUDGEMENT", tier: 3, dmg: [30, 40], color: "#fff0a8", aoe: true, base: false },
+].map((p) => ({ ...p, fraction: p.tier / 3, cost: Math.round((p.tier / 3) * HERO_MAX_MP) }));
+
+export const BASE_POWERS = POWERS.filter((p) => p.base).map((p) => p.key);
+
+// Ten ordinary trophies, shed by monsters alongside gold and potions.
+export const COMMON_ITEMS = [
+  { key: "bone", name: "BONE", type: "trophy", color: "#e8e4d9" },
+  { key: "fang", name: "FANG", type: "trophy", color: "#fff5f8" },
+  { key: "ember", name: "EMBER", type: "trophy", color: "#ff9b6b" },
+  { key: "silk", name: "SILK", type: "trophy", color: "#d9cfe8" },
+  { key: "shard", name: "SHARD", type: "trophy", color: "#8fd7ff" },
+  { key: "husk", name: "HUSK", type: "trophy", color: "#c9b48c" },
+  { key: "feather", name: "FEATHER", type: "trophy", color: "#eef2ff" },
+  { key: "claw", name: "CLAW", type: "trophy", color: "#b48ce0" },
+  { key: "scale", name: "SCALE", type: "trophy", color: "#6ddf8e" },
+  { key: "cinder", name: "CINDER", type: "trophy", color: "#ff7f9e" },
+];
+
+// Ten that only ever come out of a chest: three spellbooks, three weapons and
+// four relics that raise a stat for good.
+export const SPECIAL_ITEMS = [
+  { key: "tome-frost", name: "TOME: FROST", type: "spell", grants: "frost", color: "#bfe9ff" },
+  { key: "tome-quake", name: "TOME: QUAKE", type: "spell", grants: "quake", color: "#d9a066" },
+  { key: "tome-judge", name: "TOME: JUDGEMENT", type: "spell", grants: "judge", color: "#fff0a8" },
+  { key: "blade", name: "KEEN BLADE", type: "weapon", power: 2, color: "#eef2ff" },
+  { key: "sabre", name: "RUNED SABRE", type: "weapon", power: 3, color: "#bfe9ff" },
+  { key: "greatsword", name: "GREATSWORD", type: "weapon", power: 5, color: "#ffd76b" },
+  { key: "heart", name: "STONE HEART", type: "relic", stat: "maxHp", amount: 12, color: "#ff6b8a" },
+  { key: "sigil", name: "MANA SIGIL", type: "relic", stat: "maxMp", amount: 4, color: "#6bb6ff" },
+  { key: "aegis", name: "AEGIS", type: "relic", stat: "defence", amount: 1, color: "#cfd6e6" },
+  { key: "boots", name: "SWIFT BOOTS", type: "relic", stat: "speed", amount: 0.4, color: "#6ddf8e" },
+];
+
+export const ITEMS = COMMON_ITEMS.concat(SPECIAL_ITEMS);
+
+// A chest holds one to three things and never gold or potions. A full chest of
+// three always carries at least one special.
+export function rollChestContents() {
+  const count = 1 + Math.floor(Math.random() * 3);
+  const contents = [];
+
+  if (count === 3) {
+    contents.push(pick(SPECIAL_ITEMS));
+  }
+
+  while (contents.length < count) {
+    const pool = Math.random() < 0.4 ? SPECIAL_ITEMS : COMMON_ITEMS;
+    const candidate = pick(pool);
+    if (!contents.some((c) => c.key === candidate.key)) {
+      contents.push(candidate);
+    }
+  }
+
+  return contents;
+}
+
+// The strongest of the spells the hero actually knows that he can currently
+// afford. He does not cast every opening, so the sword still gets used.
+export function choosePower(known, mp, roll = Math.random()) {
+  const affordable = POWERS.filter((p) => known.indexOf(p.key) !== -1 && p.cost <= mp);
+  if (affordable.length === 0 || roll > CAST_CHANCE) {
+    return null;
+  }
+  return affordable.reduce((best, p) => {
+    if (p.cost !== best.cost) {
+      return p.cost > best.cost ? p : best;
+    }
+    return p.dmg[1] > best.dmg[1] ? p : best;
+  });
+}
+
+// Applies one pickup. Returns the changed hero; floats are pushed onto the list
+// it is handed.
+export function applyPickup(hero, entry, push) {
+  const next = { ...hero, bag: hero.bag.concat(entry.key || entry.kind) };
+
+  if (entry.kind === "potion") {
+    next.hp = Math.min(next.maxHp, next.hp + 8);
+  } else if (entry.kind === "mana") {
+    next.mp = Math.min(next.maxMp, next.mp + 5);
+  } else if (entry.type === "spell") {
+    if (next.powers.indexOf(entry.grants) === -1) {
+      next.powers = next.powers.concat(entry.grants);
+    }
+  } else if (entry.type === "weapon") {
+    next.weapon = Math.max(next.weapon, entry.power);
+  } else if (entry.type === "relic") {
+    if (entry.stat === "maxHp") {
+      next.maxHp += entry.amount;
+      next.hp += entry.amount;
+    } else if (entry.stat === "maxMp") {
+      next.maxMp += entry.amount;
+    } else if (entry.stat === "defence") {
+      next.defence += entry.amount;
+    } else if (entry.stat === "speed") {
+      next.speed += entry.amount;
+    }
+  }
+
+  push(entry.name || entry.label, entry.color);
+  return next;
+}
+
 export function initialState() {
   return {
     tick: 0,
     hero: {
       x: 16,
       hp: HERO_MAX_HP,
+      maxHp: HERO_MAX_HP,
       mp: HERO_MAX_MP,
+      maxMp: HERO_MAX_MP,
+      defence: HERO_DEFENCE,
+      speed: HERO_SPEED,
+      weapon: 0,
+      powers: BASE_POWERS.slice(),
+      bag: [],
       face: 1,
       state: "idle",
       timer: 0,
@@ -204,7 +306,7 @@ export function step(prev) {
   hero.mpTimer = (hero.mpTimer || 0) + 1;
   if (hero.mpTimer >= MP_REGEN_TICKS) {
     hero.mpTimer = 0;
-    hero.mp = Math.min(HERO_MAX_MP, hero.mp + 1);
+    hero.mp = Math.min(hero.maxMp, hero.mp + 1);
   }
 
   if (hero.dead) {
@@ -222,8 +324,8 @@ export function step(prev) {
       hero: {
         ...hero,
         x: 16,
-        hp: HERO_MAX_HP,
-        mp: HERO_MAX_MP,
+        hp: hero.maxHp,
+        mp: hero.maxMp,
         dead: false,
         state: "idle",
         respawn: 0,
@@ -244,7 +346,10 @@ export function step(prev) {
       continue;
     }
     if (Math.random() < DROP_CHANCE) {
-      drops = drops.concat({ ...pick(DROPS), id: id(), x: m.x, born: tick });
+      const loot = Math.random() < 0.4
+        ? { ...pick(COMMON_ITEMS), kind: "item" }
+        : { ...pick(DROPS) };
+      drops = drops.concat({ ...loot, id: id(), x: m.x, born: tick });
     }
   }
   monsters = survivors;
@@ -253,6 +358,17 @@ export function step(prev) {
 
   if (living.length === 0) {
     waveGap += 1;
+    if (waveGap === 1 && Math.random() < CHEST_CHANCE) {
+      drops = drops.concat({
+        kind: "chest",
+        name: "CHEST",
+        color: "#ffd76b",
+        id: id(),
+        x: clamp(FIELD_MIN + Math.random() * (FIELD_MAX - FIELD_MIN), FIELD_MIN, FIELD_MAX),
+        born: tick,
+        contents: rollChestContents(),
+      });
+    }
     if (waveGap >= WAVE_GAP) {
       monsters = monsters.concat(spawnWave(hero.x));
       waveGap = 0;
@@ -261,19 +377,34 @@ export function step(prev) {
     waveGap = 0;
   }
 
-  // Hero: close on the nearest living monster, swing when in reach.
+  // Hero: fetch loot when the field allows it, otherwise close on the nearest
+  // monster and swing when in reach.
   if (hero.state !== "attack" && hero.state !== "cast" && hero.state !== "hurt") {
     const target = living
       .slice()
       .sort((a, b) => Math.abs(a.x - hero.x) - Math.abs(b.x - hero.x))[0];
 
-    if (target) {
+    const loot = drops
+      .slice()
+      .sort((a, b) => Math.abs(a.x - hero.x) - Math.abs(b.x - hero.x))[0];
+
+    // Loot is worth a detour when nothing is in his face: either the field is
+    // clear or the nearest thing on the ground is closer than the nearest
+    // monster.
+    const goForLoot = loot && (!target || Math.abs(loot.x - hero.x) < Math.abs(target.x - hero.x));
+
+    if (goForLoot && Math.abs(loot.x - hero.x) > PICKUP_RANGE - 1) {
+      const gap = loot.x - hero.x;
+      hero.face = gap >= 0 ? 1 : -1;
+      hero.state = "walk";
+      hero.x = clamp(hero.x + Math.sign(gap) * hero.speed, FIELD_MIN, FIELD_MAX);
+    } else if (target) {
       const gap = target.x - hero.x;
       hero.face = gap >= 0 ? 1 : -1;
 
       if (Math.abs(gap) <= HERO_REACH) {
         if (hero.cooldown === 0) {
-          const power = choosePower(hero.mp);
+          const power = choosePower(hero.powers, hero.mp);
 
           if (power) {
             const struck = power.aoe ? living : [target];
@@ -301,7 +432,7 @@ export function step(prev) {
             floats = addFloat(floats, tick, power.name, power.color, hero.x);
           } else {
             const crit = Math.random() < 0.18;
-            const damage = rollBetween([3, 6]) + (crit ? 5 : 0);
+            const damage = rollBetween([3, 6]) + hero.weapon + (crit ? 5 : 0);
 
             hero.state = "attack";
             hero.timer = ATTACK_TICKS;
@@ -332,7 +463,7 @@ export function step(prev) {
         }
       } else {
         hero.state = "walk";
-        hero.x = clamp(hero.x + Math.sign(gap) * HERO_SPEED, FIELD_MIN, FIELD_MAX);
+        hero.x = clamp(hero.x + Math.sign(gap) * hero.speed, FIELD_MIN, FIELD_MAX);
       }
     } else {
       hero.state = "idle";
@@ -355,7 +486,7 @@ export function step(prev) {
 
     if (Math.abs(gap) <= standoff) {
       if (next.cooldown === 0 && Math.abs(gap) <= next.reach + 2) {
-        const damage = Math.max(1, rollBetween(next.dmg) - HERO_DEFENCE);
+        const damage = Math.max(1, rollBetween(next.dmg) - hero.defence);
         next.state = "attack";
         next.timer = ATTACK_TICKS;
         next.cooldown = next.cd;
@@ -383,21 +514,36 @@ export function step(prev) {
     return next;
   });
 
-  // Loot is collected by walking over it.
+  // Loot is collected by walking onto it; a chest bursts into everything it
+  // holds at once.
   if (!hero.dead && drops.length) {
     const kept = [];
+    // Collected into a list the loop only appends to, so the closure below does
+    // not capture a variable being reassigned each pass.
+    const announced = [];
+
     for (const d of drops) {
       if (Math.abs(d.x - hero.x) > PICKUP_RANGE) {
         kept.push(d);
         continue;
       }
-      if (d.kind === "potion") {
-        hero.hp = Math.min(HERO_MAX_HP, hero.hp + 8);
-      } else if (d.kind === "mana") {
-        hero.mp = Math.min(HERO_MAX_MP, hero.mp + 5);
+
+      const push = (text, color) => announced.push({ text, color, x: d.x });
+
+      if (d.kind === "chest") {
+        push("CHEST", "#ffd76b");
+        for (const entry of d.contents) {
+          hero = applyPickup(hero, entry, push);
+        }
+      } else {
+        hero = applyPickup(hero, d, push);
       }
-      floats = addFloat(floats, tick, d.label, d.color, d.x);
     }
+
+    for (const a of announced) {
+      floats = addFloat(floats, tick, a.text, a.color, a.x);
+    }
+
     drops = kept;
   }
 
@@ -555,8 +701,20 @@ function MonsterSprite({ kind }) {
   }
 }
 
-function DropSprite({ kind }) {
-  if (kind === "coin") {
+function DropSprite({ drop }) {
+  if (drop.kind === "chest") {
+    return (
+      <svg viewBox="0 0 12 10" shapeRendering="crispEdges">
+        <path fill="#8a5f1c" d="M1 3h10v6H1z" />
+        <path fill="#c9962b" d="M1 0h10v3H1z" />
+        <rect x="1" y="3" width="10" height="1" fill="#6b4a2a" />
+        <rect x="5" y="2" width="2" height="3" fill="#ffd76b" />
+        <rect x="5" y="3" width="2" height="1" fill="#6b4a2a" />
+      </svg>
+    );
+  }
+
+  if (drop.kind === "coin") {
     return (
       <svg viewBox="0 0 7 7" shapeRendering="crispEdges">
         <path fill="#ffd76b" d="M2 0h3v1h1v5H1V1h1z" />
@@ -564,19 +722,52 @@ function DropSprite({ kind }) {
       </svg>
     );
   }
-  if (kind === "relic") {
+
+  if (drop.kind === "potion" || drop.kind === "mana") {
+    const glass = drop.kind === "mana" ? "#6bb6ff" : "#ff6b8a";
     return (
-      <svg viewBox="0 0 7 7" shapeRendering="crispEdges">
-        <path fill="#e6e0ff" d="M3 0h1v2h2v1h1v1H5v3H2V4H0V3h2V2h1z" />
+      <svg viewBox="0 0 7 8" shapeRendering="crispEdges">
+        <rect x="3" y="0" width="2" height="1" fill="#d8cfae" />
+        <rect x="2" y="1" width="4" height="6" fill={glass} />
+        <rect x="3" y="2" width="1" height="2" fill="#ffffff" opacity="0.6" />
       </svg>
     );
   }
-  const glass = kind === "mana" ? "#6bb6ff" : "#ff6b8a";
+
+  // Everything out of the catalogue is drawn by its type, tinted per item.
+  if (drop.type === "spell") {
+    return (
+      <svg viewBox="0 0 8 8" shapeRendering="crispEdges">
+        <rect x="0" y="0" width="8" height="8" fill="#4a3b6b" />
+        <rect x="1" y="1" width="6" height="6" fill={drop.color} />
+        <rect x="3" y="2" width="2" height="4" fill="#4a3b6b" />
+        <rect x="2" y="3" width="4" height="2" fill="#4a3b6b" />
+      </svg>
+    );
+  }
+
+  if (drop.type === "weapon") {
+    return (
+      <svg viewBox="0 0 8 8" shapeRendering="crispEdges">
+        <rect x="3" y="0" width="2" height="6" fill={drop.color} />
+        <rect x="1" y="5" width="6" height="1" fill="#c9962b" />
+        <rect x="3" y="6" width="2" height="2" fill="#6b4a2a" />
+      </svg>
+    );
+  }
+
+  if (drop.type === "relic") {
+    return (
+      <svg viewBox="0 0 8 8" shapeRendering="crispEdges">
+        <path fill={drop.color} d="M3 0h2v1h2v2h1v2H6v3H2V5H0V3h1V1h2z" />
+      </svg>
+    );
+  }
+
   return (
-    <svg viewBox="0 0 7 8" shapeRendering="crispEdges">
-      <rect x="3" y="0" width="2" height="1" fill="#d8cfae" />
-      <rect x="2" y="1" width="4" height="6" fill={glass} />
-      <rect x="3" y="2" width="1" height="2" fill="#ffffff" opacity="0.6" />
+    <svg viewBox="0 0 7 7" shapeRendering="crispEdges">
+      <path fill={drop.color || "#e8e4d9"} d="M2 1h3v1h1v3H1V2h1z" />
+      <rect x="2" y="2" width="1" height="1" fill="#ffffff" opacity="0.5" />
     </svg>
   );
 }
@@ -607,8 +798,12 @@ export default function BattleScene() {
   return (
     <div className="bs" aria-hidden="true">
       {drops.map((d) => (
-        <span key={d.id} className="bs-drop" style={{ left: d.x + "%" }}>
-          <DropSprite kind={d.kind} />
+        <span
+          key={d.id}
+          className={"bs-drop" + (d.kind === "chest" ? " bs-drop--chest" : "")}
+          style={{ left: d.x + "%" }}
+        >
+          <DropSprite drop={d} />
         </span>
       ))}
 

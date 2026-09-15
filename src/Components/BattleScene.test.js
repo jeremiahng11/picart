@@ -1,6 +1,7 @@
 import {
-  step, initialState, spawnWave, choosePower,
-  MONSTERS, POWERS, HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE,
+  step, initialState, spawnWave, choosePower, applyPickup, rollChestContents,
+  MONSTERS, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS,
+  HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE,
 } from './BattleScene';
 
 // The skirmish rolls dice, so tests pin Math.random to make a frame
@@ -144,8 +145,33 @@ test('a corpse leaves loot behind and the hero collects it by walking over it', 
   const after = withRandom(0.1, () => step(state));
 
   expect(after.monsters).toHaveLength(0);
+  expect(after.hero.bag.length).toBeGreaterThan(0);
+  // Clearing the field can leave a chest behind, but the monster's own drop is
+  // gone from the ground.
+  expect(after.drops.every((d) => d.kind === 'chest')).toBe(true);
+});
+
+test('a potion picked off the ground restores health', () => {
+  const state = {
+    ...heroAt(40, { hp: 5, cooldown: 99 }),
+    monsters: [],
+    drops: [{ kind: 'potion', label: '+HP', color: '#ff6b8a', id: 3, x: 40, born: 0 }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
   expect(after.hero.hp).toBeGreaterThan(5);
   expect(after.drops).toHaveLength(0);
+});
+
+test('a mana potion picked off the ground restores mana', () => {
+  const state = {
+    ...heroAt(40, { mp: 0, cooldown: 99 }),
+    monsters: [],
+    drops: [{ kind: 'mana', label: '+MP', color: '#6bb6ff', id: 4, x: 40, born: 0 }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.hero.mp).toBeGreaterThanOrEqual(5);
 });
 
 test('loot out of the hero reach stays on the ground', () => {
@@ -196,8 +222,9 @@ test('a long skirmish never breaks its invariants', () => {
     s = step(s);
 
     expect(s.hero.hp).toBeGreaterThanOrEqual(0);
-    expect(s.hero.hp).toBeLessThanOrEqual(HERO_MAX_HP);
-    expect(s.hero.mp).toBeLessThanOrEqual(HERO_MAX_MP);
+    expect(s.hero.hp).toBeLessThanOrEqual(s.hero.maxHp);
+    expect(s.hero.mp).toBeLessThanOrEqual(s.hero.maxMp);
+    expect(s.hero.powers.length).toBeLessThanOrEqual(POWERS.length);
     expect(s.hero.x).toBeGreaterThanOrEqual(0);
     expect(s.hero.x).toBeLessThanOrEqual(100);
     expect(s.monsters.length).toBeLessThanOrEqual(6);
@@ -213,38 +240,53 @@ test('a long skirmish never breaks its invariants', () => {
   }
 });
 
-test('the three powers cost a third, two thirds and all of the mana pool', () => {
-  expect(POWERS).toHaveLength(3);
-  expect(POWERS.map((p) => p.cost)).toEqual([
-    Math.round(HERO_MAX_MP / 3),
-    Math.round((HERO_MAX_MP * 2) / 3),
-    HERO_MAX_MP,
-  ]);
+test('powers cost a third, two thirds or all of the mana pool', () => {
+  expect(POWERS).toHaveLength(6);
+  for (const p of POWERS) {
+    expect(p.cost).toBe(Math.round((p.tier / 3) * HERO_MAX_MP));
+  }
 });
 
-test('the dearest power is the strongest and the only one that hits everything', () => {
-  const [spark, flame, nova] = POWERS;
+test('the hero starts with three spells and can reach six', () => {
+  expect(BASE_POWERS).toHaveLength(3);
+  expect(POWERS.filter((p) => !p.base)).toHaveLength(3);
 
-  expect(flame.dmg[0]).toBeGreaterThan(spark.dmg[1]);
-  expect(nova.dmg[0]).toBeGreaterThan(flame.dmg[1]);
-  expect(nova.aoe).toBe(true);
-  expect(spark.aoe).toBe(false);
-  expect(flame.aoe).toBe(false);
+  const tomes = SPECIAL_ITEMS.filter((i) => i.type === 'spell');
+  expect(tomes).toHaveLength(3);
+
+  let hero = { ...initialState().hero };
+  for (const tome of tomes) {
+    hero = applyPickup(hero, tome, () => {});
+  }
+  expect(hero.powers).toHaveLength(6);
+});
+
+test('damage climbs with the tier of the spell', () => {
+  const byTier = (t) => POWERS.filter((p) => p.tier === t);
+  const top = (t) => Math.max(...byTier(t).map((p) => p.dmg[1]));
+
+  expect(top(2)).toBeGreaterThan(top(1));
+  expect(top(3)).toBeGreaterThan(top(2));
 });
 
 test('the hero casts the strongest power he can afford', () => {
-  expect(choosePower(HERO_MAX_MP, 0).key).toBe('nova');
-  expect(choosePower(POWERS[1].cost, 0).key).toBe('flame');
-  expect(choosePower(POWERS[0].cost, 0).key).toBe('spark');
+  expect(choosePower(BASE_POWERS, HERO_MAX_MP, 0).key).toBe('nova');
+  expect(choosePower(BASE_POWERS, 8, 0).key).toBe('flame');
+  expect(choosePower(BASE_POWERS, 4, 0).key).toBe('spark');
 });
 
 test('no power is cast without the mana for it', () => {
-  expect(choosePower(POWERS[0].cost - 1, 0)).toBeNull();
-  expect(choosePower(0, 0)).toBeNull();
+  expect(choosePower(BASE_POWERS, 3, 0)).toBeNull();
+  expect(choosePower(BASE_POWERS, 0, 0)).toBeNull();
 });
 
 test('the hero sometimes swings instead of casting', () => {
-  expect(choosePower(HERO_MAX_MP, 0.99)).toBeNull();
+  expect(choosePower(BASE_POWERS, HERO_MAX_MP, 0.99)).toBeNull();
+});
+
+test('a spell he has not learned is never cast', () => {
+  expect(choosePower(BASE_POWERS, HERO_MAX_MP, 0).key).not.toBe('judge');
+  expect(choosePower(BASE_POWERS.concat('judge'), HERO_MAX_MP, 0).key).toBe('judge');
 });
 
 test('casting spends the mana it costs', () => {
@@ -297,4 +339,106 @@ test('armour takes the edge off every blow', () => {
   const dealt = HERO_MAX_HP - after.hero.hp;
   expect(dealt).toBe(imp.dmg[1] - HERO_DEFENCE);
   expect(dealt).toBeGreaterThanOrEqual(1);
+});
+
+
+test('there are twenty items, half of them special', () => {
+  expect(ITEMS).toHaveLength(20);
+  expect(COMMON_ITEMS).toHaveLength(10);
+  expect(SPECIAL_ITEMS).toHaveLength(10);
+  expect(new Set(ITEMS.map((i) => i.key)).size).toBe(20);
+});
+
+test('no item is gold or a potion', () => {
+  for (const item of ITEMS) {
+    expect(['potion', 'mana', 'coin']).not.toContain(item.key);
+    expect(item.type).toBeDefined();
+  }
+});
+
+test('a chest holds between one and three things, never gold or a potion', () => {
+  for (let i = 0; i < 200; i++) {
+    const contents = rollChestContents();
+    expect(contents.length).toBeGreaterThanOrEqual(1);
+    expect(contents.length).toBeLessThanOrEqual(3);
+
+    for (const entry of contents) {
+      expect(ITEMS.some((it) => it.key === entry.key)).toBe(true);
+    }
+    expect(new Set(contents.map((c) => c.key)).size).toBe(contents.length);
+  }
+});
+
+test('a full chest of three always carries at least one special', () => {
+  let sawThree = 0;
+  for (let i = 0; i < 400; i++) {
+    const contents = rollChestContents();
+    if (contents.length !== 3) {
+      continue;
+    }
+    sawThree += 1;
+    const specials = contents.filter((c) => SPECIAL_ITEMS.some((s) => s.key === c.key));
+    expect(specials.length).toBeGreaterThanOrEqual(1);
+  }
+  expect(sawThree).toBeGreaterThan(0);
+});
+
+test('a spellbook teaches its spell once and only once', () => {
+  const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
+  let hero = initialState().hero;
+
+  hero = applyPickup(hero, tome, () => {});
+  const afterFirst = hero.powers.length;
+  hero = applyPickup(hero, tome, () => {});
+
+  expect(hero.powers).toContain(tome.grants);
+  expect(hero.powers).toHaveLength(afterFirst);
+});
+
+test('a better blade replaces a worse one but never downgrades', () => {
+  const blades = SPECIAL_ITEMS.filter((i) => i.type === 'weapon')
+    .sort((a, b) => a.power - b.power);
+  let hero = initialState().hero;
+
+  hero = applyPickup(hero, blades[blades.length - 1], () => {});
+  expect(hero.weapon).toBe(blades[blades.length - 1].power);
+
+  hero = applyPickup(hero, blades[0], () => {});
+  expect(hero.weapon).toBe(blades[blades.length - 1].power);
+});
+
+test('relics raise the stat they name for good', () => {
+  const base = initialState().hero;
+
+  for (const relic of SPECIAL_ITEMS.filter((i) => i.type === 'relic')) {
+    const after = applyPickup(base, relic, () => {});
+    expect(after[relic.stat]).toBeGreaterThan(base[relic.stat]);
+  }
+});
+
+test('the hero walks over to fetch loot when nothing is on him', () => {
+  const state = {
+    ...heroAt(20, { cooldown: 999 }),
+    monsters: [],
+    drops: [{ kind: 'coin', label: 'GOLD', color: '#ffd76b', id: 7, x: 80, born: 0 }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.hero.state).toBe('walk');
+  expect(after.hero.x).toBeGreaterThan(20);
+});
+
+test('a chest hands over everything inside it at once', () => {
+  const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
+  const relic = SPECIAL_ITEMS.find((i) => i.type === 'relic');
+  const state = {
+    ...heroAt(40, { cooldown: 999 }),
+    monsters: [],
+    drops: [{ kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 8, x: 40, born: 0, contents: [tome, relic] }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.drops).toHaveLength(0);
+  expect(after.hero.powers).toContain(tome.grants);
+  expect(after.hero[relic.stat]).toBeGreaterThan(state.hero[relic.stat]);
 });
