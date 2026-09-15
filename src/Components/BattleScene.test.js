@@ -1,7 +1,7 @@
 import {
-  step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount,
+  step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
   MONSTERS, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS,
-  HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX,
+  HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
 
 // The skirmish rolls dice, so tests pin Math.random to make a frame
@@ -231,8 +231,10 @@ test('a long skirmish never breaks its invariants', () => {
     expect(s.hero.hp).toBeLessThanOrEqual(s.hero.maxHp);
     expect(s.hero.mp).toBeLessThanOrEqual(s.hero.maxMp);
     expect(s.hero.powers.length).toBeLessThanOrEqual(POWERS.length);
-    expect(s.hero.x).toBeGreaterThanOrEqual(0);
-    expect(s.hero.x).toBeLessThanOrEqual(100);
+    // Travel takes him off both edges on purpose, so the bound is the frame
+    // plus the off-screen margin rather than the field.
+    expect(s.hero.x).toBeGreaterThanOrEqual(-20);
+    expect(s.hero.x).toBeLessThanOrEqual(120);
     expect(s.monsters.length).toBeLessThanOrEqual(6);
     expect(s.floats.length).toBeLessThan(30);
     expect(s.drops.length).toBeLessThan(20);
@@ -413,13 +415,84 @@ test('a better blade replaces a worse one but never downgrades', () => {
   expect(hero.weapon).toBe(blades[blades.length - 1].power);
 });
 
-test('relics raise the stat they name for good', () => {
+test('armour and shields raise defence while they are worn', () => {
   const base = initialState().hero;
+  const armour = SPECIAL_ITEMS.find((i) => i.type === 'armour');
+  const shield = SPECIAL_ITEMS.find((i) => i.type === 'shield');
 
-  for (const relic of SPECIAL_ITEMS.filter((i) => i.type === 'relic')) {
-    const after = applyPickup(base, relic, () => {});
-    expect(after[relic.stat]).toBeGreaterThan(base[relic.stat]);
-  }
+  const wearing = applyPickup(applyPickup(base, armour, () => {}), shield, () => {});
+
+  expect(wearing.defence).toBe(base.defence + armour.defence + shield.defence);
+  expect(wearing.maxHp).toBeGreaterThan(base.maxHp);
+  expect(wearing.gear.armour.key).toBe(armour.key);
+  expect(wearing.gear.shield.key).toBe(shield.key);
+});
+
+test('a weaker piece is kept rather than worn', () => {
+  const base = initialState().hero;
+  const [weak, strong] = SPECIAL_ITEMS.filter((i) => i.type === 'armour')
+    .sort((a, b) => a.tier - b.tier);
+
+  let hero = applyPickup(base, strong, () => {});
+  hero = applyPickup(hero, weak, () => {});
+
+  expect(hero.gear.armour.key).toBe(strong.key);
+  expect(hero.inventory.some((i) => i.key === weak.key)).toBe(true);
+});
+
+test('what a better piece replaces goes into the pack', () => {
+  const base = initialState().hero;
+  const [weak, strong] = SPECIAL_ITEMS.filter((i) => i.type === 'weapon')
+    .sort((a, b) => a.tier - b.tier);
+
+  let hero = applyPickup(base, weak, () => {});
+  hero = applyPickup(hero, strong, () => {});
+
+  expect(hero.gear.weapon.key).toBe(strong.key);
+  expect(hero.inventory.some((i) => i.key === weak.key)).toBe(true);
+});
+
+test('a better piece sitting in the pack is drawn by reequip', () => {
+  const base = initialState().hero;
+  const strong = SPECIAL_ITEMS.filter((i) => i.type === 'weapon')
+    .sort((a, b) => b.tier - a.tier)[0];
+
+  const carrying = { ...base, inventory: [strong] };
+  const after = reequip(carrying);
+
+  expect(after.gear.weapon.key).toBe(strong.key);
+  expect(after.weapon).toBe(strong.power);
+  expect(after.inventory).toHaveLength(0);
+});
+
+test('a potion found at full health is kept rather than wasted', () => {
+  const base = initialState().hero;
+  const potion = { kind: 'potion', label: '+HP', color: '#ff6b8a' };
+
+  const after = applyPickup(base, potion, () => {});
+
+  expect(after.hp).toBe(base.maxHp);
+  expect(after.inventory).toHaveLength(1);
+});
+
+test('a spell he already knows is kept as a spare book', () => {
+  const base = initialState().hero;
+  const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
+
+  let hero = applyPickup(base, tome, () => {});
+  const learned = hero.powers.length;
+  hero = applyPickup(hero, tome, () => {});
+
+  expect(hero.powers).toHaveLength(learned);
+  expect(hero.inventory.some((i) => i.key === tome.key)).toBe(true);
+});
+
+test('levelling stops at ninety nine', () => {
+  const base = initialState().hero;
+  const after = gainXp(base, XP_PER_LEVEL * 500000);
+
+  expect(after.level).toBe(MAX_LEVEL);
+  expect(after.xp).toBe(0);
 });
 
 test('the hero walks over to fetch loot when nothing is on him', () => {
@@ -436,17 +509,17 @@ test('the hero walks over to fetch loot when nothing is on him', () => {
 
 test('a chest hands over everything inside it at once', () => {
   const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
-  const relic = SPECIAL_ITEMS.find((i) => i.type === 'relic');
+  const armour = SPECIAL_ITEMS.find((i) => i.type === 'armour');
   const state = {
     ...heroAt(40, { cooldown: 999 }),
     monsters: [],
-    drops: [{ kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 8, x: 40, born: 0, contents: [tome, relic] }],
+    drops: [{ kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 8, x: 40, born: 0, contents: [tome, armour] }],
   };
   const after = withRandom(0.9, () => step(state));
 
   expect(after.drops).toHaveLength(0);
   expect(after.hero.powers).toContain(tome.grants);
-  expect(after.hero[relic.stat]).toBeGreaterThan(state.hero[relic.stat]);
+  expect(after.hero.gear.armour.key).toBe(armour.key);
 });
 
 test('experience accumulates and levels raise the health ceiling', () => {
@@ -469,11 +542,11 @@ test('a big haul of experience can carry more than one level', () => {
 
 test('simultaneous pickups are given separate lanes so the text cannot overlap', () => {
   const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
-  const relic = SPECIAL_ITEMS.find((i) => i.type === 'relic');
+  const armour = SPECIAL_ITEMS.find((i) => i.type === 'armour');
   const state = {
     ...heroAt(40, { cooldown: 999 }),
     monsters: [],
-    drops: [{ kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 11, x: 40, born: 0, contents: [tome, relic] }],
+    drops: [{ kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 11, x: 40, born: 0, contents: [tome, armour] }],
   };
   const after = withRandom(0.9, () => step(state));
 
@@ -618,41 +691,41 @@ test('loot still on the ground keeps him from moving on', () => {
   expect(s.travelling).toBe(false);
 });
 
-test('the hero fades out at the edge rather than snapping across', () => {
+test('the hero walks clean off the frame rather than stopping at the edge', () => {
   let s = { ...heroAt(90, { cooldown: 999 }), monsters: [], drops: [], travelling: true, journey: 3 };
 
-  for (let i = 0; i < 12 && s.hero.state !== 'exit'; i++) {
+  for (let i = 0; i < 8 && s.journey === 3; i++) {
     s = withRandom(0.5, () => step(s));
   }
 
-  // He reaches the edge and holds there while fading, with the scene unchanged.
-  expect(s.hero.state).toBe('exit');
-  expect(s.journey).toBe(3);
-  expect(s.hero.x).toBeGreaterThan(80);
+  // He keeps going past the right edge of the field before anything changes.
+  expect(s.hero.x).toBeGreaterThan(94);
 });
 
-test('the scene turns over between the two fades', () => {
+test('the land changes while he is out of sight, not in view', () => {
   let s = { ...heroAt(90, { cooldown: 999 }), monsters: [], drops: [], travelling: true, journey: 3 };
 
-  for (let i = 0; i < 20 && s.journey === 3; i++) {
+  for (let i = 0; i < 30 && s.journey === 3; i++) {
     s = withRandom(0.5, () => step(s));
   }
 
   expect(s.journey).toBe(4);
-  expect(s.hero.state).toBe('enter');
-  expect(s.hero.x).toBeLessThan(20);
+  // Off the left of the frame, so the swap itself cannot be seen.
+  expect(s.hero.x).toBeLessThan(0);
+  expect(s.hero.warp).toBe(s.tick);
   expect(s.monsters.length).toBeGreaterThanOrEqual(1);
 });
 
-test('travel ends once the arrival fade is done', () => {
+test('he walks back into frame and takes up the fight again', () => {
   let s = { ...heroAt(90, { cooldown: 999 }), monsters: [], drops: [], travelling: true, journey: 3 };
 
-  for (let i = 0; i < 40 && s.travelling; i++) {
+  for (let i = 0; i < 60 && s.travelling; i++) {
     s = withRandom(0.5, () => step(s));
   }
 
   expect(s.travelling).toBe(false);
-  expect(s.hero.state).not.toBe('enter');
+  expect(s.hero.x).toBeGreaterThanOrEqual(0);
+  expect(s.hero.x).toBeLessThan(30);
 });
 
 test('a monster still standing stops the journey', () => {

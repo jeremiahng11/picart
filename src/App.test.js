@@ -98,3 +98,28 @@ test('clicking the hero opens his status sheet, and clicking away closes it', ()
   fireEvent.click(screen.getByText(/CLICK ANYWHERE TO CLOSE/i).closest('.bs-sheet-wrap'));
   expect(screen.queryByText(/CLICK ANYWHERE TO CLOSE/i)).not.toBeInTheDocument();
 });
+
+test('the status sheet has an inventory tab that does not close the sheet', () => {
+  const { container } = renderConnected();
+  fireEvent.click(container.querySelector('.bs-hit'));
+
+  // Decorative and aria-hidden, so the tabs are found by class rather than role.
+  const tabs = Array.from(container.querySelectorAll('.bs-tab'));
+  expect(tabs.map((t) => t.textContent.trim())).toEqual(['STATUS', 'INVENTORY']);
+
+  fireEvent.click(tabs[1]);
+
+  // Clicking inside the sheet must not fall through to the backdrop.
+  expect(screen.getByText(/NOTHING SPARE/i)).toBeInTheDocument();
+  expect(screen.getByText(/CLICK ANYWHERE TO CLOSE/i)).toBeInTheDocument();
+});
+
+test('equipment slots are listed with their fallbacks when nothing is found yet', () => {
+  const { container } = renderConnected();
+  fireEvent.click(container.querySelector('.bs-hit'));
+
+  expect(screen.getByText('PLAIN SWORD')).toBeInTheDocument();
+  expect(screen.getByText('TUNIC')).toBeInTheDocument();
+  expect(screen.getByText('BUCKLER')).toBeInTheDocument();
+  expect(screen.getByText(/LV 1 \/ 99/)).toBeInTheDocument();
+});

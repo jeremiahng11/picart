@@ -1247,6 +1247,8 @@ body {
 }
 
 .bs-facing { display: block; }
+.bs-unit.is-warp, .bs-hit.is-warp { transition: none; }
+
 .bs-sprite { display: block; }
 .bs-sprite svg { display: block; height: 26px; width: auto; }
 .bs-unit--hero .bs-sprite svg { height: 40px; }
@@ -1411,20 +1413,6 @@ body {
 @keyframes bs-shake {
   from { transform: translateX(-2px); }
   to { transform: translateX(2px); }
-}
-
-/* Matched to sc-fade so the hero and the land change together. */
-.bs-unit--hero.is-exit { animation: bs-depart 1s ease-in forwards; }
-.bs-unit--hero.is-enter { animation: bs-arrive 1.3s ease-out both; }
-
-@keyframes bs-depart {
-  from { opacity: 1; transform: translateX(-50%) scale(1); }
-  to { opacity: 0; transform: translateX(-50%) scale(0.86); }
-}
-
-@keyframes bs-arrive {
-  from { opacity: 0; transform: translateX(-50%) scale(0.86); }
-  to { opacity: 1; transform: translateX(-50%) scale(1); }
 }
 
 .bs-unit.is-dead {
@@ -1636,6 +1624,63 @@ body {
 .bs-sheet__row--wrap { align-items: flex-start; }
 .bs-sheet__label { color: #b6a9dd; flex-shrink: 0; }
 .bs-tag { display: inline-block; margin-left: 0.375rem; }
+
+.bs-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.4375rem;
+}
+
+.bs-tab {
+  flex: 1;
+  padding: 0.25rem;
+  font-family: var(--pixel);
+  font-size: 0.4375rem;
+  color: #b6a9dd;
+  background: rgba(44, 31, 78, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  cursor: pointer;
+}
+
+.bs-tab.is-on {
+  color: #0d0a1c;
+  background: #ffd76b;
+  border-color: #ffffff;
+}
+
+.bs-icon {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
+.bs-icon--empty {
+  display: inline-block;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
+.bs-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.bs-slot .bs-sheet__label { flex: 0 0 3.75rem; }
+
+.bs-bag {
+  max-height: 7rem;
+  overflow-y: auto;
+}
+
+.bs-bag__row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.bs-bag__kind { margin-left: auto; color: #7f72a8; }
+.bs-bag__empty { margin: 0.75rem 0; text-align: center; color: #7f72a8; }
 
 .bs-sheet__hint {
   margin: 0.5rem 0 0;

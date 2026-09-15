@@ -47,8 +47,10 @@ export const HP_REGEN_TICKS = 16;
 const EFFECT_LIFE = 5;
 // Timed against the scene cross-fade in App.css so the hero dims out of the old
 // land and brightens into the new one alongside it, rather than snapping across.
-const EXIT_TICKS = 6;
-const ENTER_TICKS = 8;
+// Far enough past the edges that the label's clipping hides him entirely, so
+// the scene can be swapped without anything being seen to jump.
+const EXIT_X = 116;
+const ENTER_X = -16;
 export const WAVES_MIN = 2;
 export const WAVES_MAX = 5;
 const WAVE_PAUSE = 16;
@@ -186,14 +188,23 @@ export const SPECIAL_ITEMS = [
   { key: "tome-frost", name: "TOME: FROST", type: "spell", grants: "frost", color: "#bfe9ff" },
   { key: "tome-quake", name: "TOME: QUAKE", type: "spell", grants: "quake", color: "#d9a066" },
   { key: "tome-judge", name: "TOME: JUDGEMENT", type: "spell", grants: "judge", color: "#fff0a8" },
-  { key: "blade", name: "KEEN BLADE", type: "weapon", power: 2, color: "#eef2ff" },
-  { key: "sabre", name: "RUNED SABRE", type: "weapon", power: 3, color: "#bfe9ff" },
-  { key: "greatsword", name: "GREATSWORD", type: "weapon", power: 5, color: "#ffd76b" },
-  { key: "heart", name: "STONE HEART", type: "relic", stat: "maxHp", amount: 12, color: "#ff6b8a" },
-  { key: "sigil", name: "MANA SIGIL", type: "relic", stat: "maxMp", amount: 4, color: "#6bb6ff" },
-  { key: "aegis", name: "AEGIS", type: "relic", stat: "defence", amount: 1, color: "#cfd6e6" },
-  { key: "boots", name: "SWIFT BOOTS", type: "relic", stat: "speed", amount: 0.4, color: "#6ddf8e" },
+
+  { key: "blade", name: "KEEN BLADE", type: "weapon", tier: 1, power: 2, color: "#eef2ff" },
+  { key: "sabre", name: "RUNED SABRE", type: "weapon", tier: 2, power: 3, color: "#bfe9ff" },
+  { key: "greatsword", name: "GREATSWORD", type: "weapon", tier: 3, power: 5, color: "#ffd76b" },
+
+  { key: "chain", name: "CHAINMAIL", type: "armour", tier: 1, defence: 1, maxHp: 8, color: "#c9cfdd" },
+  { key: "plate", name: "PLATE ARMOUR", type: "armour", tier: 2, defence: 2, maxHp: 16, color: "#eef2ff" },
+
+  { key: "kite", name: "KITE SHIELD", type: "shield", tier: 1, defence: 1, color: "#cfd6e6" },
+  { key: "tower", name: "TOWER SHIELD", type: "shield", tier: 2, defence: 2, color: "#ffd76b" },
 ];
+
+// Weapons, armour and shields occupy a slot; the better one is worn and the
+// other is kept.
+export const SLOTS = ["weapon", "armour", "shield"];
+
+export const MAX_LEVEL = 99;
 
 export const ITEMS = COMMON_ITEMS.concat(SPECIAL_ITEMS);
 
@@ -238,34 +249,100 @@ export function choosePower(known, mp, roll = Math.random()) {
 export function applyPickup(hero, entry, push) {
   const next = { ...hero, bag: hero.bag.concat(entry.key || entry.kind) };
 
-  if (entry.kind === "potion") {
-    next.hp = Math.min(next.maxHp, next.hp + 8);
-  } else if (entry.kind === "mana") {
-    next.mp = Math.min(next.maxMp, next.mp + 5);
-  } else if (entry.type === "spell") {
+  if (entry.kind === "potion" || entry.kind === "mana") {
+    const full = entry.kind === "potion" ? next.hp >= next.maxHp : next.mp >= next.maxMp;
+
+    if (full) {
+      // No use for it now, so it goes in the pack for later.
+      next.inventory = next.inventory.concat(entry);
+      push(entry.label + " KEPT", entry.color);
+      return next;
+    }
+
+    if (entry.kind === "potion") {
+      next.hp = Math.min(next.maxHp, next.hp + 8);
+    } else {
+      next.mp = Math.min(next.maxMp, next.mp + 5);
+    }
+    push(entry.label, entry.color);
+    return next;
+  }
+
+  if (entry.type === "spell") {
     if (next.powers.indexOf(entry.grants) === -1) {
       next.powers = next.powers.concat(entry.grants);
+      push(entry.name, entry.color);
+    } else {
+      // A spell he already knows is a spare book rather than nothing.
+      next.inventory = next.inventory.concat(entry);
+      push("SPARE TOME", entry.color);
     }
-  } else if (entry.type === "weapon") {
-    if (entry.power > next.weapon) {
-      next.weapon = entry.power;
-      next.gear = { ...next.gear, weapon: entry };
-    }
-  } else if (entry.type === "relic") {
-    next.gear = { ...next.gear, relics: next.gear.relics.concat(entry.key) };
-    if (entry.stat === "maxHp") {
-      next.maxHp += entry.amount;
-      next.hp += entry.amount;
-    } else if (entry.stat === "maxMp") {
-      next.maxMp += entry.amount;
-    } else if (entry.stat === "defence") {
-      next.defence += entry.amount;
-    } else if (entry.stat === "speed") {
-      next.speed += entry.amount;
-    }
+    return next;
+  }
+
+  if (SLOTS.indexOf(entry.type) !== -1) {
+    return equip(next, entry, push);
   }
 
   push(entry.name || entry.label, entry.color);
+  return next;
+}
+
+// Wears the piece if it beats what is in that slot, keeping whatever it
+// replaces. Anything weaker is kept too, so nothing found is thrown away.
+export function equip(hero, entry, push = () => {}) {
+  const next = { ...hero, gear: { ...hero.gear } };
+  const worn = next.gear[entry.type];
+
+  if (worn && worn.tier >= entry.tier) {
+    next.inventory = next.inventory.concat(entry);
+    push("SPARE " + entry.type.toUpperCase(), entry.color);
+    return next;
+  }
+
+  next.gear[entry.type] = entry;
+  next.inventory = worn
+    ? next.inventory.filter((i) => i !== entry).concat(worn)
+    : next.inventory.filter((i) => i !== entry);
+
+  push(entry.name, entry.color);
+  return recalc(next);
+}
+
+// Stats are derived from what is worn, so taking a piece off cannot leave a
+// bonus behind.
+export function recalc(hero) {
+  const next = { ...hero };
+  const armour = next.gear.armour;
+  const shield = next.gear.shield;
+
+  next.weapon = next.gear.weapon ? next.gear.weapon.power : 0;
+  next.defence = HERO_DEFENCE + (armour ? armour.defence : 0) + (shield ? shield.defence : 0);
+
+  const ceiling = HERO_MAX_HP + (armour ? armour.maxHp : 0) + (next.level - 1) * LEVEL_HP;
+  next.maxHp = ceiling;
+  next.hp = Math.min(next.hp, next.maxHp);
+
+  return next;
+}
+
+// Anything in the pack that beats what is worn is put on. This is what lets a
+// better blade found while a fight is on be drawn once there is a moment.
+export function reequip(hero) {
+  let next = hero;
+
+  for (const slot of SLOTS) {
+    const best = next.inventory
+      .filter((i) => i.type === slot)
+      .reduce((top, i) => (!top || i.tier > top.tier ? i : top), null);
+
+    const worn = next.gear[slot];
+    if (best && (!worn || best.tier > worn.tier)) {
+      next = { ...next, inventory: next.inventory.filter((i) => i !== best) };
+      next = equip(next, best);
+    }
+  }
+
   return next;
 }
 
@@ -283,7 +360,8 @@ export function initialState() {
       weapon: 0,
       level: 1,
       xp: 0,
-      gear: { weapon: null, relics: [] },
+      gear: { weapon: null, armour: null, shield: null },
+      inventory: [],
       powers: BASE_POWERS.slice(),
       bag: [],
       face: 1,
@@ -291,7 +369,6 @@ export function initialState() {
       timer: 0,
       cooldown: 0,
       mpTimer: 0,
-      travelTimer: 0,
       wanderTo: null,
       wanderTimer: 0,
       spell: null,
@@ -337,11 +414,16 @@ export const LEVEL_HP = 6;
 export function gainXp(hero, amount) {
   const next = { ...hero, xp: hero.xp + amount };
 
-  while (next.xp >= next.level * XP_PER_LEVEL) {
+  while (next.level < MAX_LEVEL && next.xp >= next.level * XP_PER_LEVEL) {
     next.xp -= next.level * XP_PER_LEVEL;
     next.level += 1;
     next.maxHp += LEVEL_HP;
     next.hp = next.maxHp;
+  }
+
+  if (next.level >= MAX_LEVEL) {
+    next.level = MAX_LEVEL;
+    next.xp = 0;
   }
 
   return next;
@@ -475,46 +557,35 @@ export function step(prev) {
     hero.wanderTimer = 0;
   }
 
-  // Travel runs in three beats: walk to the edge, fade out of this land, fade in
-  // at the next. The journey only advances between the two fades, which is what
-  // keeps the hero and the scenery changing together.
+  // Travel keeps him on his feet the whole way: he walks off the right of the
+  // frame, and the moment he is out of sight the land changes and he walks back
+  // in from the left. No fading, and nothing visibly teleports.
   if (travelling && !hero.dead) {
-    if (hero.state === "exit") {
-      hero.travelTimer -= 1;
-      if (hero.travelTimer <= 0) {
-        journey += 1;
-        hero.x = FIELD_MIN;
-        hero.state = "enter";
-        hero.travelTimer = ENTER_TICKS;
-        monsters = spawnWave(hero.x);
-        wavesLeft = rollWaveCount() - 1;
-        const arrival = sceneAt(journey);
-        floats = addFloat(
-          floats,
-          tick,
-          arrival.biome.toUpperCase() + " " + arrival.phase.toUpperCase(),
-          "#ffd76b",
-          hero.x
-        );
-      }
-    } else if (hero.state === "enter") {
-      hero.travelTimer -= 1;
-      if (hero.travelTimer <= 0) {
-        hero.state = "idle";
-        hero.travelTimer = 0;
-        travelling = false;
-        waveGap = 0;
-      }
-    } else {
-      hero.state = "walk";
-      hero.face = 1;
-      hero.x += hero.speed * 1.4;
+    hero.state = "walk";
+    hero.face = 1;
+    hero.x += hero.speed * 1.5;
 
-      if (hero.x >= FIELD_MAX) {
-        hero.x = FIELD_MAX;
-        hero.state = "exit";
-        hero.travelTimer = EXIT_TICKS;
-      }
+    if (hero.x >= EXIT_X) {
+      journey += 1;
+      hero.x = ENTER_X;
+      // The left property is eased, which would drag him back across the frame
+      // in view. This marks the one frame that must not animate.
+      hero.warp = tick;
+      monsters = spawnWave(FIELD_MIN + 20);
+      wavesLeft = rollWaveCount() - 1;
+      const arrival = sceneAt(journey);
+      floats = addFloat(
+        floats,
+        tick,
+        arrival.biome.toUpperCase() + " " + arrival.phase.toUpperCase(),
+        "#ffd76b",
+        FIELD_MIN + 8
+      );
+    }
+
+    if (hero.x >= FIELD_MIN && journey !== prev.journey) {
+      travelling = false;
+      waveGap = 0;
     }
 
     return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft };
@@ -532,6 +603,20 @@ export function step(prev) {
 
     const loot = nearest(drops);
     const hurt = hero.hp <= hero.maxHp * LOW_HP;
+
+    // A potion in the pack is drunk before going looking for one on the ground.
+    if (hurt) {
+      const kept = hero.inventory.find((i) => i.kind === "potion");
+      if (kept) {
+        hero = {
+          ...hero,
+          hp: Math.min(hero.maxHp, hero.hp + 8),
+          inventory: hero.inventory.filter((i) => i !== kept),
+        };
+        floats = addFloat(floats, tick, "+HP", "#ff6b8a", hero.x);
+      }
+    }
+
     const potion = hurt ? nearest(drops.filter((d) => d.kind === "potion")) : null;
 
     // Loot is worth a detour when nothing is in his face: either the field is
@@ -643,6 +728,9 @@ export function step(prev) {
     } else if (hero.wanderTimer > 0) {
       hero.wanderTimer -= 1;
       hero.state = "idle";
+      if (hero.wanderTimer % 8 === 0) {
+        hero = reequip(hero);
+      }
     } else if (hero.wanderTo === null || Math.abs(hero.wanderTo - hero.x) < 2.5) {
       hero.wanderTo = FIELD_MIN + Math.random() * (FIELD_MAX - FIELD_MIN);
       hero.wanderTimer = WANDER_PAUSE[0] + Math.floor(Math.random() * (WANDER_PAUSE[1] - WANDER_PAUSE[0]));
@@ -743,9 +831,15 @@ function prefersReducedMotion() {
   );
 }
 
-function HeroSprite({ weapon, shielded }) {
+function HeroSprite({ weapon, armour, shield }) {
   // Three blades and two shields, so an upgrade is visible on the field rather
   // than only in the numbers.
+  const plate = armour >= 2;
+  const mail = armour === 1;
+  const body = plate ? "#dfe6f5" : mail ? "#9aa8c4" : "#4a7fe0";
+  const bodyLit = plate ? "#ffffff" : mail ? "#c3cde0" : "#84adf7";
+  const bodyDark = plate ? "#a8b4cc" : mail ? "#6f7d99" : "#3a63b4";
+
   const blade =
     weapon >= 5
       ? { x: 18, w: 4, top: 0, body: "#e8dcae", edge: "#ffd76b", guard: "#ffd76b" }
@@ -795,21 +889,41 @@ function HeroSprite({ weapon, shielded }) {
         <rect x="16" y="10" width="4" height="1" fill="#f6f9ff" />
 
         {/* Cuirass */}
-        <rect x="9" y="10" width="8" height="9" fill="#4a7fe0" />
-        <rect x="9" y="10" width="8" height="1" fill="#84adf7" />
-        <rect x="9" y="14" width="8" height="1" fill="#3a63b4" />
+        <rect x="9" y="10" width="8" height="9" fill={body} />
+        <rect x="9" y="10" width="8" height="1" fill={bodyLit} />
+        <rect x="9" y="14" width="8" height="1" fill={bodyDark} />
+        {mail && (
+          <g>
+            <rect x="9" y="12" width="8" height="1" fill={bodyDark} opacity="0.7" />
+            <rect x="9" y="16" width="8" height="1" fill={bodyDark} opacity="0.7" />
+          </g>
+        )}
+        {plate && (
+          <g>
+            <rect x="9" y="11" width="1" height="8" fill="#ffd76b" />
+            <rect x="16" y="11" width="1" height="8" fill="#ffd76b" />
+          </g>
+        )}
         <rect x="11" y="12" width="4" height="3" fill="#ffd76b" />
         <rect x="12" y="13" width="2" height="1" fill="#c9962b" />
         <rect x="9" y="19" width="8" height="2" fill="#6b4a2a" />
         <rect x="12" y="19" width="2" height="2" fill="#c9962b" />
 
-        {shielded ? (
+        {shield >= 2 ? (
           <g>
-            <rect x="2" y="11" width="6" height="9" fill="#cfd6e6" />
+            <rect x="1" y="10" width="7" height="12" fill="#cfd6e6" />
+            <rect x="1" y="10" width="7" height="1" fill="#f6f9ff" />
+            <rect x="2" y="12" width="5" height="8" fill="#c9962b" />
+            <rect x="3" y="14" width="3" height="4" fill="#ffd76b" />
+            <rect x="1" y="22" width="7" height="1" fill="#9aa3bb" />
+          </g>
+        ) : shield === 1 ? (
+          <g>
+            <rect x="2" y="11" width="6" height="7" fill="#cfd6e6" />
             <rect x="2" y="11" width="6" height="1" fill="#f6f9ff" />
-            <rect x="3" y="13" width="4" height="5" fill="#4a7fe0" />
-            <rect x="4" y="14" width="2" height="3" fill="#ffd76b" />
-            <rect x="2" y="20" width="6" height="1" fill="#9aa3bb" />
+            <path fill="#cfd6e6" d="M3 18h4v2H3zM4 20h2v1H4z" />
+            <rect x="3" y="13" width="4" height="4" fill="#4a7fe0" />
+            <rect x="4" y="14" width="2" height="2" fill="#ffd76b" />
           </g>
         ) : (
           <g>
@@ -1004,67 +1118,165 @@ function Bar({ value, max, color, width }) {
   );
 }
 
+// Every kind of thing gets its own drawing, so the sheet reads as a row of
+// items rather than a list of words.
+export function ItemIcon({ item }) {
+  const c = item.color || "#e8e4d9";
+
+  if (item.type === "spell") {
+    return (
+      <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
+        <rect x="0" y="0" width="9" height="10" fill="#4a3b6b" />
+        <rect x="1" y="1" width="7" height="8" fill={c} />
+        <rect x="0" y="0" width="2" height="10" fill="#6b4a2a" />
+        <rect x="4" y="3" width="2" height="4" fill="#4a3b6b" />
+        <rect x="3" y="4" width="4" height="2" fill="#4a3b6b" />
+      </svg>
+    );
+  }
+
+  if (item.type === "weapon") {
+    return (
+      <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
+        <rect x="4" y="0" width="2" height="7" fill={c} />
+        <rect x="4" y="0" width="1" height="7" fill="#ffffff" />
+        <rect x="2" y="6" width="6" height="1" fill="#c9962b" />
+        <rect x="4" y="7" width="2" height="3" fill="#6b4a2a" />
+      </svg>
+    );
+  }
+
+  if (item.type === "armour") {
+    return (
+      <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
+        <path fill={c} d="M2 1h6v7H2z" />
+        <rect x="1" y="1" width="2" height="3" fill={c} />
+        <rect x="7" y="1" width="2" height="3" fill={c} />
+        <rect x="2" y="1" width="6" height="1" fill="#ffffff" />
+        <rect x="4" y="3" width="2" height="3" fill="#4a7fe0" />
+      </svg>
+    );
+  }
+
+  if (item.type === "shield") {
+    return (
+      <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
+        <path fill={c} d="M2 1h6v5H2z" />
+        <path fill={c} d="M3 6h4v2H3zM4 8h2v1H4z" />
+        <rect x="2" y="1" width="6" height="1" fill="#ffffff" />
+        <rect x="4" y="3" width="2" height="3" fill="#4a7fe0" />
+      </svg>
+    );
+  }
+
+  if (item.kind === "potion" || item.kind === "mana") {
+    const glass = item.kind === "mana" ? "#6bb6ff" : "#ff6b8a";
+    return (
+      <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
+        <rect x="4" y="0" width="2" height="2" fill="#d8cfae" />
+        <rect x="2" y="2" width="6" height="7" fill={glass} />
+        <rect x="3" y="3" width="1" height="3" fill="#ffffff" opacity="0.6" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
+      <path fill={c} d="M3 2h4v1h1v5H2V3h1z" />
+      <rect x="3" y="3" width="1" height="1" fill="#ffffff" opacity="0.5" />
+    </svg>
+  );
+}
+
+function Slot({ label, item, fallback }) {
+  return (
+    <div className="bs-slot">
+      <span className="bs-sheet__label">{label}</span>
+      {item ? <ItemIcon item={item} /> : <span className="bs-icon bs-icon--empty" />}
+      <span>{item ? item.name : fallback}</span>
+    </div>
+  );
+}
+
 function StatusSheet({ hero, onClose }) {
+  const [tab, setTab] = React.useState("status");
   const known = POWERS.filter((p) => hero.powers.indexOf(p.key) !== -1);
-  const relics = hero.gear.relics
-    .map((key) => SPECIAL_ITEMS.find((i) => i.key === key))
-    .filter(Boolean);
   const trophies = new Set(hero.bag.filter((b) => COMMON_ITEMS.some((i) => i.key === b)));
 
   return (
     // Anywhere outside closes it, which is why the backdrop carries the handler.
     <div className="bs-sheet-wrap" onClick={onClose} role="presentation">
-      <div className="bs-sheet">
+      <div className="bs-sheet" onClick={(e) => e.stopPropagation()} role="presentation">
         <div className="bs-sheet__head">
           <span>HERO</span>
-          <span>LV {hero.level}</span>
+          <span>LV {hero.level} / {MAX_LEVEL}</span>
         </div>
 
-        <dl className="bs-sheet__stats">
-          <dt>HP</dt><dd>{hero.hp} / {hero.maxHp}</dd>
-          <dt>MP</dt><dd>{hero.mp} / {hero.maxMp}</dd>
-          <dt>XP</dt><dd>{hero.xp} / {hero.level * XP_PER_LEVEL}</dd>
-          <dt>ATK</dt><dd>{3 + hero.weapon} - {6 + hero.weapon}</dd>
-          <dt>DEF</dt><dd>{hero.defence}</dd>
-          <dt>SPD</dt><dd>{hero.speed.toFixed(1)}</dd>
-        </dl>
-
-        <div className="bs-sheet__row">
-          <span className="bs-sheet__label">WEAPON</span>
-          <span>{hero.gear.weapon ? hero.gear.weapon.name : "PLAIN SWORD"}</span>
+        <div className="bs-tabs">
+          <button
+            type="button"
+            tabIndex={-1}
+            className={"bs-tab" + (tab === "status" ? " is-on" : "")}
+            onClick={() => setTab("status")}
+          >
+            STATUS
+          </button>
+          <button
+            type="button"
+            tabIndex={-1}
+            className={"bs-tab" + (tab === "bag" ? " is-on" : "")}
+            onClick={() => setTab("bag")}
+          >
+            INVENTORY {hero.inventory.length > 0 ? "(" + hero.inventory.length + ")" : ""}
+          </button>
         </div>
 
-        <div className="bs-sheet__row">
-          <span className="bs-sheet__label">ARMOUR</span>
-          <span>{hero.defence > HERO_DEFENCE ? "AEGIS" : "LEATHER"}</span>
-        </div>
+        {tab === "status" ? (
+          <div>
+            <dl className="bs-sheet__stats">
+              <dt>HP</dt><dd>{hero.hp} / {hero.maxHp}</dd>
+              <dt>MP</dt><dd>{hero.mp} / {hero.maxMp}</dd>
+              <dt>XP</dt><dd>{hero.level >= MAX_LEVEL ? "MAX" : hero.xp + " / " + hero.level * XP_PER_LEVEL}</dd>
+              <dt>ATK</dt><dd>{3 + hero.weapon} - {6 + hero.weapon}</dd>
+              <dt>DEF</dt><dd>{hero.defence}</dd>
+              <dt>SPD</dt><dd>{hero.speed.toFixed(1)}</dd>
+            </dl>
 
-        <div className="bs-sheet__row bs-sheet__row--wrap">
-          <span className="bs-sheet__label">SPELLS</span>
-          <span>
-            {known.map((p) => (
-              <span key={p.key} className="bs-tag" style={{ color: p.color }}>
-                {p.name} {p.cost}
+            <Slot label="WEAPON" item={hero.gear.weapon} fallback="PLAIN SWORD" />
+            <Slot label="ARMOUR" item={hero.gear.armour} fallback="TUNIC" />
+            <Slot label="SHIELD" item={hero.gear.shield} fallback="BUCKLER" />
+
+            <div className="bs-sheet__row bs-sheet__row--wrap">
+              <span className="bs-sheet__label">SPELLS</span>
+              <span>
+                {known.map((p) => (
+                  <span key={p.key} className="bs-tag" style={{ color: p.color }}>
+                    {p.name} {p.cost}
+                  </span>
+                ))}
               </span>
-            ))}
-          </span>
-        </div>
+            </div>
 
-        {relics.length > 0 && (
-          <div className="bs-sheet__row bs-sheet__row--wrap">
-            <span className="bs-sheet__label">RELICS</span>
-            <span>
-              {relics.map((r) => (
-                <span key={r.key} className="bs-tag" style={{ color: r.color }}>{r.name}</span>
-              ))}
-            </span>
+            <div className="bs-sheet__row">
+              <span className="bs-sheet__label">TROPHIES</span>
+              <span>{trophies.size} / {COMMON_ITEMS.length}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="bs-bag">
+            {hero.inventory.length === 0 ? (
+              <p className="bs-bag__empty">NOTHING SPARE</p>
+            ) : (
+              hero.inventory.map((item, i) => (
+                <div className="bs-bag__row" key={item.key + i}>
+                  <ItemIcon item={item} />
+                  <span>{item.name || item.label}</span>
+                  <span className="bs-bag__kind">{(item.type || item.kind).toUpperCase()}</span>
+                </div>
+              ))
+            )}
           </div>
         )}
-
-        <div className="bs-sheet__row">
-          <span className="bs-sheet__label">TROPHIES</span>
-          <span>{trophies.size} / {COMMON_ITEMS.length}</span>
-        </div>
 
         <p className="bs-sheet__hint">CLICK ANYWHERE TO CLOSE</p>
       </div>
@@ -1108,6 +1320,7 @@ export default function BattleScene() {
 
       <span
         className={"bs-unit bs-unit--hero bs-move-walk is-" + hero.state
+          + (hero.warp === state.tick ? " is-warp" : "")
           + (hero.state === "cast" && hero.spell ? " spell-" + hero.spell : "")}
         style={{ left: hero.x + "%" }}
       >
@@ -1117,7 +1330,11 @@ export default function BattleScene() {
         </span>
         <span className="bs-facing" style={{ transform: "scaleX(" + hero.face + ")" }}>
           <span className="bs-sprite">
-            <HeroSprite weapon={hero.weapon} shielded={hero.defence > HERO_DEFENCE} />
+            <HeroSprite
+              weapon={hero.weapon}
+              armour={hero.gear.armour ? hero.gear.armour.tier : 0}
+              shield={hero.gear.shield ? hero.gear.shield.tier : 0}
+            />
           </span>
         </span>
       </span>
@@ -1152,7 +1369,7 @@ export default function BattleScene() {
         {/* The content layer covers the whole label, so a click on the hero
             never reaches him. This invisible target rides above it. */}
         <span
-          className="bs-hit"
+          className={"bs-hit" + (hero.warp === state.tick ? " is-warp" : "")}
           style={{ left: hero.x + "%" }}
           onClick={() => setShowSheet(true)}
         />
