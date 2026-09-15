@@ -304,13 +304,32 @@ class GbCartridge extends React.Component {
     });
   }
 
+  // Lets go of the cartridge and returns to the connect screen, which is what
+  // puts the game back on show.
+  disconnect = async () => {
+    if (this.comm) {
+      await this.comm.close();
+      this.comm = null;
+    }
+
+    this.setState({
+      state: this.StateConnect,
+      romInfos: [],
+      romUtilization: { numRoms: 0, usedBanks: 0, maxBanks: 0 },
+      deviceInfo: {},
+      serialId: null,
+    });
+  }
+
   hideConfirmationModal = () => {
     this.setState({ showConfirmationModal: false });
   }
 
   // Every screen renders inside the cartridge label recess. Below the breakpoint
   // in App.css the shell is dropped and this collapses to a plain container.
-  inCartridge(content, below) {
+  // solid covers the whole label, so the game behind it is hidden while the
+  // cartridge is in hand.
+  inCartridge(content, below, solid) {
     return (
       <div className="stage">
         <div className="cart">
@@ -323,7 +342,7 @@ class GbCartridge extends React.Component {
               <span className="sprite sprite--fly sprite--fly1" />
               <span className="sprite sprite--fly sprite--fly2" />
             </div>
-            <div className="cart__content">
+            <div className={"cart__content" + (solid ? " is-solid" : "")}>
               {content}
             </div>
           </div>
@@ -424,6 +443,15 @@ class GbCartridge extends React.Component {
             <img src={jklLogo} alt="" className="topbar__logo" />
             <span className="topbar__name">JKL CARTRIDGE</span>
             <span className="topbar__version">v{process.env.REACT_APP_VERSION}</span>
+            <button
+              type="button"
+              className="topbar__close"
+              onClick={this.disconnect}
+              title="Disconnect the cartridge"
+              aria-label="Disconnect the cartridge"
+            >
+              X
+            </button>
           </header>
 
           <main>
@@ -514,7 +542,9 @@ class GbCartridge extends React.Component {
           <AddNewRomModal show={this.state.openAddRomModal} onHide={() => { this.setState({ openAddRomModal: false }); }} onRomAdded={this.refreshDeviceStatus} onError={this.displayError} comm={this.comm} availableBanks={free} />
           <ConfirmationModal showModal={this.state.showConfirmationModal} confirmModal={this.deleteRom} hideModal={this.hideConfirmationModal} title="Delete confirmation" id={this.state.confirmationId} message={this.state.confirmationMessage} />
           <SavegameModal show={this.state.showSavegameModal} onHide={() => { this.setState({ showSavegameModal: false }); }} onError={this.displayError} comm={this.comm} romInfo={this.state.activeRomListInfo} />
-        </div>
+        </div>,
+        null,
+        true
       );
     }
 

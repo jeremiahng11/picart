@@ -155,6 +155,29 @@ body {
 
 }
 
+/* With a cartridge in hand the manager takes the whole label and the game is
+   put away behind it. */
+.cart__content.is-solid {
+  max-height: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #17102a 0%, #120c1f 100%);
+}
+
+.topbar__close {
+  margin-left: 0.5rem;
+  padding: 0 0.3125rem;
+  font-family: var(--pixel);
+  font-size: 0.5rem;
+  line-height: 1.7;
+  color: #0d0a1c;
+  background: #ffd76b;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+}
+
+.topbar__close:hover { background: #ff6b8a; color: #ffffff; }
+.topbar__close:focus-visible { outline: 2px solid var(--jkl-pink); outline-offset: 2px; }
+
 /* Two star fields at different sizes move at different rates, which reads as
    parallax. */
 @keyframes drift {
@@ -234,12 +257,24 @@ body {
   .sc,
   .bs { display: none; }
 
-  .cart__content {
+  .cart__content,
+  .cart__content.is-solid {
     display: block;
     max-height: none;
+    height: auto;
     overflow: visible;
     padding: 0;
     background: none;
+  }
+
+  .topbar__close {
+    font-family: inherit;
+    font-size: 0.8125rem;
+    color: var(--jkl-maroon);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.125rem 0.5rem;
   }
 
   .cart__label {

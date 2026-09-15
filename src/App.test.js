@@ -139,3 +139,35 @@ test('equipment slots are listed with their fallbacks when nothing is found yet'
   expect(screen.getByText(/LV 1 \/ 99/)).toBeInTheDocument();
   expect(screen.getByText('GOLD')).toBeInTheDocument();
 });
+
+test('the manager covers the game while a cartridge is connected', () => {
+  const { container } = renderConnected();
+
+  const panel = container.querySelector('.cart__content');
+  expect(panel.classList.contains('is-solid')).toBe(true);
+});
+
+test('the connect screen leaves the game on show', () => {
+  Object.defineProperty(window.navigator, 'usb', {
+    value: { addEventListener() { }, removeEventListener() { } },
+    configurable: true,
+  });
+  const { container } = render(<App />);
+
+  const panel = container.querySelector('.cart__content');
+  expect(panel.classList.contains('is-solid')).toBe(false);
+});
+
+test('the X hands the cartridge back and the game returns', async () => {
+  const { container } = renderConnected();
+
+  expect(screen.getByText('POKEMON RED')).toBeInTheDocument();
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /disconnect the cartridge/i }));
+  });
+
+  expect(screen.queryByText('POKEMON RED')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^connect$/i })).toBeInTheDocument();
+  expect(container.querySelector('.cart__content').classList.contains('is-solid')).toBe(false);
+});
