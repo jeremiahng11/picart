@@ -114,6 +114,14 @@ The bump commit lands after the build that triggered it, so artifacts from that
 run still carry the previous version. Tagged releases are unaffected:
 `release.yml` sets the version from the tag name instead.
 
+## Assets
+
+The cartridge shell is a WebP. WebUSB restricts this app to Chromium browsers,
+which all support WebP, so there is no fallback to maintain and the shell costs
+31KB instead of the 264KB the PNG did. Both it and the logo live in `src/assets`
+so webpack content-hashes them, which puts them under the immutable caching rule
+and means replacing one can never serve stale.
+
 ## Environment variables
 
 | Variable | Default | Purpose |
