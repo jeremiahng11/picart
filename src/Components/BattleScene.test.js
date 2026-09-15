@@ -559,17 +559,41 @@ test('loot still on the ground keeps him from moving on', () => {
   expect(s.travelling).toBe(false);
 });
 
-test('walking off the edge advances the scene and brings a fresh wave', () => {
+test('the hero fades out at the edge rather than snapping across', () => {
   let s = { ...heroAt(90, { cooldown: 999 }), monsters: [], drops: [], travelling: true, journey: 3 };
 
-  for (let i = 0; i < 12 && s.journey === 3; i++) {
+  for (let i = 0; i < 12 && s.hero.state !== 'exit'; i++) {
+    s = withRandom(0.5, () => step(s));
+  }
+
+  // He reaches the edge and holds there while fading, with the scene unchanged.
+  expect(s.hero.state).toBe('exit');
+  expect(s.journey).toBe(3);
+  expect(s.hero.x).toBeGreaterThan(80);
+});
+
+test('the scene turns over between the two fades', () => {
+  let s = { ...heroAt(90, { cooldown: 999 }), monsters: [], drops: [], travelling: true, journey: 3 };
+
+  for (let i = 0; i < 20 && s.journey === 3; i++) {
     s = withRandom(0.5, () => step(s));
   }
 
   expect(s.journey).toBe(4);
-  expect(s.travelling).toBe(false);
+  expect(s.hero.state).toBe('enter');
   expect(s.hero.x).toBeLessThan(20);
   expect(s.monsters.length).toBeGreaterThanOrEqual(1);
+});
+
+test('travel ends once the arrival fade is done', () => {
+  let s = { ...heroAt(90, { cooldown: 999 }), monsters: [], drops: [], travelling: true, journey: 3 };
+
+  for (let i = 0; i < 40 && s.travelling; i++) {
+    s = withRandom(0.5, () => step(s));
+  }
+
+  expect(s.travelling).toBe(false);
+  expect(s.hero.state).not.toBe('enter');
 });
 
 test('a monster still standing stops the journey', () => {

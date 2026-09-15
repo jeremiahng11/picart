@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import App from './App';
 
 // jsdom implements no WebUSB, so the app renders its unsupported-browser path.
@@ -82,4 +82,19 @@ test('tells the user when the cartridge holds no roms', () => {
   renderConnected({ romInfos: [], romUtilization: { numRoms: 0, usedBanks: 0, maxBanks: 512 } });
 
   expect(screen.getByText(/No ROMs on this cartridge yet/i)).toBeInTheDocument();
+});
+
+test('clicking the hero opens his status sheet, and clicking away closes it', () => {
+  const { container } = renderConnected();
+
+  expect(screen.queryByText(/CLICK ANYWHERE TO CLOSE/i)).not.toBeInTheDocument();
+
+  // The battle is aria-hidden decoration, so the target is found by class
+  // rather than by role.
+  fireEvent.click(container.querySelector('.bs-hit'));
+  expect(screen.getByText(/CLICK ANYWHERE TO CLOSE/i)).toBeInTheDocument();
+  expect(screen.getByText(/PLAIN SWORD/i)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText(/CLICK ANYWHERE TO CLOSE/i).closest('.bs-sheet-wrap'));
+  expect(screen.queryByText(/CLICK ANYWHERE TO CLOSE/i)).not.toBeInTheDocument();
 });

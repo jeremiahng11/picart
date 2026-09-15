@@ -45,6 +45,10 @@ const LOW_HP = 0.4;
 const REST_RANGE = 24;
 export const HP_REGEN_TICKS = 16;
 const EFFECT_LIFE = 5;
+// Timed against the scene cross-fade in App.css so the hero dims out of the old
+// land and brightens into the new one alongside it, rather than snapping across.
+const EXIT_TICKS = 6;
+const ENTER_TICKS = 8;
 
 const FIELD_MIN = 4;
 const FIELD_MAX = 94;
@@ -275,6 +279,7 @@ export function initialState() {
       timer: 0,
       cooldown: 0,
       mpTimer: 0,
+      travelTimer: 0,
       spell: null,
       dead: false,
       respawn: 0,
@@ -445,19 +450,45 @@ export function step(prev) {
     travelling = false;
   }
 
+  // Travel runs in three beats: walk to the edge, fade out of this land, fade in
+  // at the next. The journey only advances between the two fades, which is what
+  // keeps the hero and the scenery changing together.
   if (travelling && !hero.dead) {
-    hero.state = "walk";
-    hero.face = 1;
-    hero.x += hero.speed * 1.4;
+    if (hero.state === "exit") {
+      hero.travelTimer -= 1;
+      if (hero.travelTimer <= 0) {
+        journey += 1;
+        hero.x = FIELD_MIN;
+        hero.state = "enter";
+        hero.travelTimer = ENTER_TICKS;
+        monsters = spawnWave(hero.x);
+        const arrival = sceneAt(journey);
+        floats = addFloat(
+          floats,
+          tick,
+          arrival.biome.toUpperCase() + " " + arrival.phase.toUpperCase(),
+          "#ffd76b",
+          hero.x
+        );
+      }
+    } else if (hero.state === "enter") {
+      hero.travelTimer -= 1;
+      if (hero.travelTimer <= 0) {
+        hero.state = "idle";
+        hero.travelTimer = 0;
+        travelling = false;
+        waveGap = 0;
+      }
+    } else {
+      hero.state = "walk";
+      hero.face = 1;
+      hero.x += hero.speed * 1.4;
 
-    if (hero.x >= FIELD_MAX) {
-      journey += 1;
-      hero.x = FIELD_MIN;
-      monsters = spawnWave(hero.x);
-      travelling = false;
-      waveGap = 0;
-      const { biome, phase } = sceneAt(journey);
-      floats = addFloat(floats, tick, biome.toUpperCase() + " " + phase.toUpperCase(), "#ffd76b", hero.x);
+      if (hero.x >= FIELD_MAX) {
+        hero.x = FIELD_MAX;
+        hero.state = "exit";
+        hero.travelTimer = EXIT_TICKS;
+      }
     }
 
     return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling };
@@ -1016,7 +1047,6 @@ export default function BattleScene() {
       ))}
 
       <span
-        onClick={() => setShowSheet(true)}
         className={"bs-unit bs-unit--hero bs-move-walk is-" + hero.state
           + (hero.state === "cast" && hero.spell ? " spell-" + hero.spell : "")}
         style={{ left: hero.x + "%" }}
@@ -1059,6 +1089,13 @@ export default function BattleScene() {
         </span>
       ))}
 
+        {/* The content layer covers the whole label, so a click on the hero
+            never reaches him. This invisible target rides above it. */}
+        <span
+          className="bs-hit"
+          style={{ left: hero.x + "%" }}
+          onClick={() => setShowSheet(true)}
+        />
       </div>
 
       {showSheet && <StatusSheet hero={hero} onClose={() => setShowSheet(false)} />}

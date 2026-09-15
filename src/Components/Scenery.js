@@ -28,11 +28,11 @@ import React from "react";
 export const BIOMES = [
   "plains",
   "forest",
+  "castle",
   "desert",
-  "cavern",
+  "dungeon",
   "coast",
   "ruins",
-  "tundra",
   "volcano",
 ];
 

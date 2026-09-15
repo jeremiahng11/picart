@@ -32,3 +32,8 @@ test('the original night scene is still in the rotation, with a day of its own',
   expect(sceneAt(0)).toEqual({ biome: 'plains', phase: 'day' });
   expect(sceneAt(1)).toEqual({ biome: 'plains', phase: 'night' });
 });
+
+test('the journey visits an interior as well as open country', () => {
+  expect(BIOMES).toContain('castle');
+  expect(BIOMES).toContain('dungeon');
+});
