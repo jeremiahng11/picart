@@ -166,7 +166,20 @@ class GbCartridge extends React.Component {
 
   async readRomUtilization() {
     console.log("Reading ROM utilization...");
-    var romUtiliuation = await this.comm.readRomUtilizationCommand();
+
+    var romUtiliuation;
+    try {
+      romUtiliuation = await this.comm.readRomUtilizationCommand();
+    }
+    catch (e) {
+      // Without this the rejection is unhandled and the app is stuck on
+      // "Downloading Info..." with nothing shown to the user.
+      console.log("Error reading rom utilization: " + e);
+      this.displayError("Could not read the cartridge. Please reconnect and try again.");
+      this.setState({ state: this.StateConnect });
+      return;
+    }
+
     console.log("num Roms: " + romUtiliuation.numRoms);
     console.log("used banks: " + romUtiliuation.usedBanks);
 
@@ -258,6 +271,9 @@ class GbCartridge extends React.Component {
       if (this.state.state === this.StateConnect) {
         return (
           <div className="connect">
+            {/* Also the landing spot after a failed read, so errors raised
+                while connecting have somewhere to render. */}
+            <ToastContainer />
             <img src={jklLogo} alt="pixel JKL logo" className="gameboy" />
             <h2 className="cover-heading">JKL Gameboy Cartridge</h2>
             <p className="lead">Connect your Cartridge and manage your ROMs</p>
