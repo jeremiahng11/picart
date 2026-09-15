@@ -122,6 +122,11 @@ which all support WebP, so there is no fallback to maintain and the shell costs
 so webpack content-hashes them, which puts them under the immutable caching rule
 and means replacing one can never serve stale.
 
+The label uses Press Start 2P for headings, names and counts. It is bundled as a
+latin-only subset (4.7KB) under the SIL Open Font License rather than loaded from
+a CDN, so the Electron build keeps working offline. Prose stays in the system
+stack: an 8px bitmap face is charming on a title and painful on a sentence.
+
 ## Environment variables
 
 | Variable | Default | Purpose |

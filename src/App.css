@@ -15,6 +15,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+@font-face {
+  /* Press Start 2P, SIL Open Font License. Latin subset only, self-hosted so
+     the offline build has no network dependency. */
+  font-family: 'Press Start 2P';
+  src: url('./assets/fonts/press-start-2p-latin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF;
+}
+
 :root {
   /* Sampled from the logo artwork. */
   --jkl-pink: #d73373;
@@ -28,6 +39,8 @@
   --text: #241a1f;
   --muted: #7b6a72;
   --danger: #c0392b;
+
+  --pixel: 'Press Start 2P', ui-monospace, SFMono-Regular, monospace;
 
   --radius: 14px;
   --radius-sm: 9px;
@@ -118,7 +131,27 @@ body {
   .cart__label .iconbtn { width: 2.25rem; height: 2.25rem; }
   .cart__label .iconbtn svg { width: 1rem; height: 1rem; }
   .cart__label .hero__logo { max-width: 9.5rem; }
-  .cart__label .hero__title { font-size: 1.6rem; }
+  .cart__label .hero__title { font-size: 1.6rem; font-family: inherit; }
+  .cart__label .topbar {
+    margin: 0;
+    padding: 0 0 1rem;
+    background: none;
+    color: inherit;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .cart__label .topbar__logo { filter: none; }
+  .cart__label .topbar__name { font-family: inherit; font-size: 1rem; font-weight: 650; }
+  .cart__label .topbar__version { font-family: inherit; font-size: 0.8125rem; color: var(--muted); }
+  .cart__label .panel,
+  .cart__label .rom,
+  .cart__label .roms__empty { border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .cart__label .rom__name { font-family: inherit; font-size: 1rem; font-weight: 620; }
+  .cart__label .storage__count { font-family: inherit; font-size: 0.875rem; font-weight: 600; }
+  .cart__label .meter { height: 0.625rem; padding: 0; border: 0; border-radius: 999px; }
+  .cart__label .meter__fill { border-radius: 999px; background: linear-gradient(90deg, var(--jkl-pink), var(--jkl-maroon)); }
+  .cart__label .btn-jkl { font-family: inherit; font-size: 1rem; border: 0; border-radius: var(--radius-sm); box-shadow: none; }
+  .cart__label .iconbtn { border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: none; }
 }
 
 .app {
@@ -548,6 +581,150 @@ body {
 .cart__label .panel,
 .cart__label .rom,
 .cart__label .roms__empty { background: #faf7f8; }
+
+
+/* ---- arcade treatment inside the label ----
+ * Pixel type is used for headings, names and numbers; prose stays in the system
+ * stack, which at 11px is far easier to read than an 8px bitmap face.
+ */
+
+.cart__label .topbar {
+  margin: -0.75rem -0.875rem 0.75rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--jkl-pink);
+  border: 0;
+  border-bottom: 3px solid var(--jkl-maroon);
+  border-radius: 4px 4px 0 0;
+  color: #fff;
+}
+
+.cart__label .topbar__logo {
+  /* The mark is pink; on a pink band it needs to become a white silhouette. */
+  filter: brightness(0) invert(1);
+}
+
+.cart__label .topbar__name {
+  font-family: var(--pixel);
+  font-size: 0.5rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.cart__label .topbar__version {
+  font-family: var(--pixel);
+  font-size: 0.4375rem;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.cart__label .panel {
+  border: 2px solid var(--text);
+  border-radius: 0;
+  box-shadow: 3px 3px 0 rgba(36, 26, 31, 0.14);
+}
+
+.cart__label .storage__count {
+  font-family: var(--pixel);
+  font-size: 0.5rem;
+  font-weight: 400;
+}
+
+/* Segmented like a HUD gauge rather than a smooth bar. */
+.cart__label .meter {
+  height: 0.8125rem;
+  padding: 2px;
+  background: #efe6ea;
+  border: 2px solid var(--text);
+  border-radius: 0;
+}
+
+.cart__label .meter__fill {
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--jkl-pink) 0 5px,
+    transparent 5px 7px
+  );
+}
+
+.cart__label .rom {
+  background: #fff;
+  border: 2px solid var(--text);
+  border-radius: 0;
+  box-shadow: 3px 3px 0 rgba(36, 26, 31, 0.16);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.cart__label .rom:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 rgba(36, 26, 31, 0.22);
+}
+
+.cart__label .rom__name {
+  font-family: var(--pixel);
+  font-size: 0.5rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.pixcart {
+  width: 0.875rem;
+  height: 1.02rem;
+  flex-shrink: 0;
+  color: var(--jkl-pink);
+}
+
+.cart__label .rom:hover .pixcart { color: var(--jkl-maroon); }
+
+.cart__label .roms__empty {
+  border: 2px dashed var(--text);
+  border-radius: 0;
+  opacity: 0.75;
+}
+
+/* Chunky buttons that physically depress. */
+.cart__label .btn-jkl {
+  font-family: var(--pixel);
+  font-size: 0.5rem;
+  border: 2px solid var(--jkl-maroon);
+  border-radius: 0;
+  box-shadow: 3px 3px 0 var(--jkl-maroon);
+}
+
+.cart__label .btn-jkl:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 var(--jkl-maroon);
+}
+
+.cart__label .iconbtn {
+  border: 2px solid var(--text);
+  border-radius: 0;
+  box-shadow: 2px 2px 0 rgba(36, 26, 31, 0.2);
+}
+
+.cart__label .iconbtn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.cart__label .iconbtn:disabled { box-shadow: none; opacity: 0.45; }
+
+.cart__label .hero__title {
+  font-family: var(--pixel);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+.cart__label .hero__version {
+  font-family: var(--pixel);
+  font-size: 0.4375rem;
+}
+
+.cart__label .footer__dirty {
+  font-family: var(--pixel);
+  font-size: 0.375rem;
+  border-radius: 0;
+}
 
 .cart__label::-webkit-scrollbar { width: 8px; }
 .cart__label::-webkit-scrollbar-thumb {

@@ -39,6 +39,20 @@ function compareVersion(a, b) {
   return 0;
 }
 
+// Drawn rather than imported so it inherits currentColor and stays crisp at any
+// size. shapeRendering keeps the edges hard instead of antialiased.
+function PixelCartridge() {
+  return (
+    <svg className="pixcart" viewBox="0 0 12 14" shapeRendering="crispEdges" aria-hidden="true" focusable="false">
+      <path fill="currentColor" d="M2 1h6l2 2v10H2z" />
+      <rect x="4" y="3" width="4" height="4" fill="#fff" opacity="0.92" />
+      <rect x="4" y="12" width="1" height="2" fill="currentColor" />
+      <rect x="6" y="12" width="1" height="2" fill="currentColor" />
+      <rect x="8" y="12" width="1" height="2" fill="currentColor" />
+    </svg>
+  );
+}
+
 function isElectron() {
   // Renderer process
   if (typeof window !== 'undefined' && typeof window.process === 'object' && window.process.type === 'renderer') {
@@ -396,7 +410,7 @@ class GbCartridge extends React.Component {
 
           <header className="topbar">
             <img src={jklLogo} alt="" className="topbar__logo" />
-            <span className="topbar__name">JKL Cartridge</span>
+            <span className="topbar__name">JKL CARTRIDGE</span>
             <span className="topbar__version">v{process.env.REACT_APP_VERSION}</span>
           </header>
 
@@ -424,6 +438,7 @@ class GbCartridge extends React.Component {
               ) : (
                 this.state.romInfos.map((romInfo, idx) => (
                   <article className="rom" key={idx}>
+                    <PixelCartridge />
                     <div className="rom__main">
                       <h3 className="rom__name">{romInfo.name}</h3>
                       <p className="rom__meta">{this.romMeta(romInfo)}</p>
