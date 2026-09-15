@@ -700,19 +700,19 @@ body {
  * stack, which at 11px is far easier to read than an 8px bitmap face.
  */
 
+/* No band behind it: the mark and the name sit straight on the scenery, and a
+   shadow rather than a panel is what keeps them legible over a bright sky. */
 .cart__label .topbar {
-  margin: -0.5rem -0.875rem 0.5rem;
-  padding: 0.375rem 0.625rem;
-  background: var(--jkl-pink);
+  margin: 0 0 0.5rem;
+  padding: 0 0 0.375rem;
+  background: none;
   border: 0;
-  border-bottom: 3px solid var(--jkl-maroon);
-  border-radius: 4px 4px 0 0;
   color: #fff;
+  text-shadow: 0 1px 0 rgba(8, 5, 18, 0.85), 0 0 6px rgba(8, 5, 18, 0.7);
 }
 
 .cart__label .topbar__logo {
-  /* The mark is pink; on a pink band it needs to become a white silhouette. */
-  filter: brightness(0) invert(1);
+  filter: drop-shadow(0 1px 0 rgba(8, 5, 18, 0.8));
 }
 
 .cart__label .hero a,
@@ -720,7 +720,6 @@ body {
 .cart__label .hero a:hover,
 .cart__label .footer a:hover { color: #fff; }
 .cart__label .footer { border-top-color: rgba(255, 255, 255, 0.25); }
-.cart__label .topbar { border-bottom-color: #2c1f4e; }
 .cart__label .footer__dirty { background: var(--jkl-pink); color: #fff; }
 .cart__label .spinner { border-color: rgba(255, 255, 255, 0.25); border-top-color: var(--jkl-pink); }
 
