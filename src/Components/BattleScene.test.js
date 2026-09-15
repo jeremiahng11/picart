@@ -1,7 +1,8 @@
 import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
   MONSTERS, BOSSES, EFFECT_ART, bossChance, bossAllowed, BOSS_COOLDOWN_SCENES,
-  GOD_SET, hasFullGodSet, describeItem, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
+  GOD_SET, GOD_TOME, godTreasure, hasFullGodSet, describeItem,
+  GOD_SPELL_COST, LEVEL_HP, LEVEL_MP, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
   itemScore, worthTaking, recolourKey,
   HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
@@ -263,17 +264,53 @@ test('a long skirmish never breaks its invariants', () => {
   }
 });
 
-test('powers cost a third, two thirds or all of the mana pool', () => {
-  expect(POWERS).toHaveLength(6);
-  for (const p of POWERS) {
-    expect(p.cost).toBe(Math.round((p.tier / 3) * HERO_MAX_MP));
+test('spell costs are flat and climb with the tier', () => {
+  // Costs used to be a fraction of the pool, which meant every spell grew
+  // dearer as the pool did and no cost could be a fixed promise.
+  const byTier = {};
+  for (const power of POWERS) {
+    byTier[power.tier] = power.cost;
+    expect(power.cost).toBeGreaterThan(0);
   }
+
+  expect(byTier[1]).toBeLessThan(byTier[2]);
+  expect(byTier[2]).toBeLessThan(byTier[3]);
+  expect(byTier[4]).toBe(GOD_SPELL_COST);
+});
+
+test('the ceiling spell empties the pool and hits hardest', () => {
+  const god = POWERS.find((p) => p.god);
+  const rest = POWERS.filter((p) => !p.god);
+
+  expect(god.cost).toBe(GOD_SPELL_COST);
+  expect(god.aoe).toBe(true);
+  expect(god.dmg[0]).toBeGreaterThan(Math.max(...rest.map((p) => p.dmg[1])));
+});
+
+test('the pool only reaches the ceiling spell with levels or god gold', () => {
+  const fresh = initialState().hero;
+  expect(fresh.maxMp).toBeLessThan(GOD_SPELL_COST);
+  expect(choosePower(POWERS.map((p) => p.key), fresh.maxMp, 0).god).toBeUndefined();
+
+  const grown = gainXp(fresh, XP_PER_LEVEL * 400);
+  expect(grown.maxMp).toBeGreaterThanOrEqual(GOD_SPELL_COST);
+});
+
+test('both pools grow as he levels', () => {
+  const base = initialState().hero;
+  const after = gainXp(base, XP_PER_LEVEL);
+
+  expect(after.maxHp).toBe(base.maxHp + LEVEL_HP);
+  expect(after.maxMp).toBe(base.maxMp + LEVEL_MP);
+  expect(after.mp).toBe(after.maxMp);
 });
 
 test('the hero sets out knowing one spell and can learn the rest', () => {
   expect(BASE_POWERS).toEqual(['flame']);
 
-  const tomes = SPECIAL_ITEMS.filter((i) => i.type === 'spell');
+  // Every spell but the one he starts with has a book, the ceiling spell's
+  // being rare rather than ordinary.
+  const tomes = SPECIAL_ITEMS.filter((i) => i.type === 'spell').concat(GOD_TOME);
   expect(tomes).toHaveLength(POWERS.length - 1);
 
   let hero = { ...initialState().hero };
@@ -1021,9 +1058,15 @@ test('every effect kind has art behind it', () => {
     expect(EFFECT_ART[extra]).toBeDefined();
   }
   for (const art of Object.values(EFFECT_ART)) {
+    // The bolt is drawn rather than taken from a plate, since the pack has none.
+    if (art.bolt) {
+      continue;
+    }
     expect(typeof art.sheet).toBe('string');
     expect(art.frames).toBeGreaterThanOrEqual(4);
   }
+
+  expect(EFFECT_ART.godlight.bolt).toBe(true);
 });
 
 
@@ -1174,4 +1217,41 @@ test('the full set is a real jump over the best ordinary kit', () => {
   expect(godly.defence).toBeGreaterThan(ordinary.defence * 5);
   expect(godly.maxHp).toBeGreaterThan(ordinary.maxHp);
   expect(godly.weapon).toBeGreaterThan(ordinary.weapon * 5);
+});
+
+
+test('a golden chest holds god gold and nothing else', () => {
+  for (let i = 0; i < 300; i++) {
+    const treasure = godTreasure();
+    expect(treasure.god).toBe(true);
+    const inSet = GOD_SET.some((g) => g.key === treasure.key);
+    expect(inSet || treasure.key === GOD_TOME.key).toBe(true);
+  }
+});
+
+test('the ceiling spell is learned from a book, not worn', () => {
+  expect(GOD_TOME.type).toBe('spell');
+  expect(GOD_SET.some((g) => g.type === 'spell')).toBe(false);
+
+  const hero = applyPickup(initialState().hero, GOD_TOME, () => {});
+  expect(hero.powers).toContain('godlight');
+});
+
+test('god armour protects far beyond ordinary plate', () => {
+  const plate = SPECIAL_ITEMS.find((i) => i.key === 'top-plate');
+  const god = GOD_SET.find((i) => i.type === 'top');
+
+  expect(god.defence).toBeGreaterThanOrEqual(99);
+  expect(god.defence).toBeGreaterThan(plate.defence * 10);
+});
+
+test('a hero in the full set can afford the ceiling spell', () => {
+  let hero = initialState().hero;
+  for (const piece of GOD_SET) {
+    hero = applyPickup(hero, piece, () => {});
+  }
+  hero = applyPickup(hero, GOD_TOME, () => {});
+
+  expect(hero.maxMp).toBeGreaterThanOrEqual(GOD_SPELL_COST);
+  expect(choosePower(hero.powers, hero.maxMp, 0).key).toBe('godlight');
 });

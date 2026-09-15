@@ -1395,6 +1395,34 @@ body {
 
 .bs-plate--still { animation: none; background-position-x: 0; }
 
+/* Gods lightning: a bolt that strikes down the frame and leaves a wash of light
+   behind it. */
+.bs-bolt {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  width: 26px;
+  height: 150px;
+  margin-left: -13px;
+  animation: bs-bolt-strike 0.5s steps(4, end) 1 forwards;
+  filter: drop-shadow(0 0 8px #fff6c9);
+}
+
+.bs-bolt svg { display: block; width: 100%; height: 100%; }
+
+@keyframes bs-bolt-strike {
+  0% { opacity: 0; transform: scaleY(0.1); transform-origin: top; }
+  25% { opacity: 1; transform: scaleY(1); transform-origin: top; }
+  60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* A golden chest is worth spotting from across the scene. */
+.bs-drop--golden {
+  filter: drop-shadow(0 0 6px #ffd76b) saturate(1.6) brightness(1.2);
+  animation: bs-dropin 0.4s ease-out, bs-shine 1.1s ease-in-out infinite 0.4s;
+}
+
 /* ---- status sheet ---- */
 
 /* The hero is the one thing in the scene that takes a click. */

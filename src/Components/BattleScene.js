@@ -51,6 +51,9 @@ const TICK_MS = 165;
 // rather than finishing him.
 export const HERO_MAX_HP = 60;
 export const HERO_MAX_MP = 12;
+// Both pools grow with him, so the dearest spell comes within reach as he does.
+export const LEVEL_MP = 2;
+export const GOD_SPELL_COST = 40;
 export const HERO_DEFENCE = 1;
 
 const HERO_SPEED = 1.5;
@@ -77,6 +80,9 @@ export const EFFECT_ART = {
   nova: { sheet: rippleSheet, frames: 6, tall: true, filter: "hue-rotate(255deg) saturate(1.8)" },
   judge: { sheet: rippleSheet, frames: 6, tall: true, filter: "hue-rotate(70deg) brightness(1.3)" },
   heal: { sheet: auraSheet, frames: 4, tall: true, filter: "none" },
+  // Drawn rather than taken from a plate: the pack has no bolt, and a zap wants
+  // to strike from above rather than bloom on the spot.
+  godlight: { bolt: true },
 };
 // Timed against the scene cross-fade in App.css so the hero dims out of the old
 // land and brightens into the new one alongside it, rather than snapping across.
@@ -248,15 +254,17 @@ export function spawnWave(heroX = 16, level = 1, allowBoss = true) {
 // thirds and the lot. The strongest is also the only one that catches every
 // monster on the field.
 export const POWERS = [
-  { key: "spark", name: "SPARK", tier: 1, dmg: [7, 11], color: "#8fd7ff", aoe: false, base: true },
-  { key: "frost", name: "FROST", tier: 1, dmg: [10, 14], color: "#bfe9ff", aoe: false, base: false },
-  { key: "flame", name: "FLAME", tier: 2, dmg: [14, 19], color: "#ffb36b", aoe: false, base: true },
-  { key: "quake", name: "QUAKE", tier: 2, dmg: [17, 23], color: "#d9a066", aoe: true, base: false },
-  { key: "nova", name: "NOVA", tier: 3, dmg: [22, 30], color: "#ff6bd6", aoe: true, base: true },
-  { key: "judge", name: "JUDGEMENT", tier: 3, dmg: [30, 40], color: "#fff0a8", aoe: true, base: false },
-].map((p) => ({ ...p, fraction: p.tier / 3, cost: Math.round((p.tier / 3) * HERO_MAX_MP) }));
+  { key: "spark", name: "SPARK", tier: 1, cost: 4, dmg: [7, 11], color: "#8fd7ff", aoe: false },
+  { key: "frost", name: "FROST", tier: 1, cost: 4, dmg: [10, 14], color: "#bfe9ff", aoe: false },
+  { key: "flame", name: "FLAME", tier: 2, cost: 8, dmg: [14, 19], color: "#ffb36b", aoe: false },
+  { key: "quake", name: "QUAKE", tier: 2, cost: 8, dmg: [17, 23], color: "#d9a066", aoe: true },
+  { key: "nova", name: "NOVA", tier: 3, cost: 12, dmg: [22, 30], color: "#ff6bd6", aoe: true },
+  { key: "judge", name: "JUDGEMENT", tier: 3, cost: 12, dmg: [30, 40], color: "#fff0a8", aoe: true },
+  // The ceiling. It empties the pool, and the pool only reaches forty after
+  // fifteen levels or with god gold on.
+  { key: "godlight", name: "GODS LIGHTNING", tier: 4, cost: 40, dmg: [120, 180], color: "#fff6c9", aoe: true, god: true },
+];
 
-// He sets out knowing one spell; the rest are found as books.
 export const BASE_POWERS = ["flame"];
 
 // Ten ordinary trophies, shed by monsters alongside gold and potions.
@@ -414,15 +422,30 @@ export function worthTaking(hero, item) {
 // boss hoard. The blade is the ceiling the whole scale was built around.
 export const GOD_SET = [
   { key: "god-weapon", name: "GODS GOLD BLADE", type: "weapon", tier: 7, power: 99, element: "holy", color: "#ffd76b", god: true },
-  { key: "god-shield", name: "GODS GOLD AEGIS", type: "shield", tier: 4, defence: 20, maxHp: 40, color: "#ffd76b", god: true },
-  { key: "god-helm", name: "GODS GOLD CROWN", type: "helm", tier: 4, defence: 15, maxHp: 30, color: "#ffd76b", god: true },
-  { key: "god-top", name: "GODS GOLD PLATE", type: "top", tier: 4, defence: 25, maxHp: 60, color: "#ffd76b", god: true },
-  { key: "god-legs", name: "GODS GOLD GREAVES", type: "legs", tier: 4, defence: 15, maxHp: 35, color: "#ffd76b", god: true },
-  { key: "god-boots", name: "GODS GOLD SABATONS", type: "boots", tier: 4, defence: 12, maxHp: 20, speed: 0.6, color: "#ffd76b", god: true },
-  { key: "god-gloves", name: "GODS GOLD GAUNTLETS", type: "gloves", tier: 4, defence: 10, power: 12, color: "#ffd76b", god: true },
+  { key: "god-shield", name: "GODS GOLD AEGIS", type: "shield", tier: 4, defence: 99, maxHp: 40, color: "#ffd76b", god: true },
+  { key: "god-helm", name: "GODS GOLD CROWN", type: "helm", tier: 4, defence: 40, maxHp: 30, maxMp: 12, color: "#ffd76b", god: true },
+  { key: "god-top", name: "GODS GOLD PLATE", type: "top", tier: 4, defence: 99, maxHp: 99, color: "#ffd76b", god: true },
+  { key: "god-legs", name: "GODS GOLD GREAVES", type: "legs", tier: 4, defence: 60, maxHp: 50, color: "#ffd76b", god: true },
+  { key: "god-boots", name: "GODS GOLD SABATONS", type: "boots", tier: 4, defence: 35, maxHp: 25, speed: 0.6, color: "#ffd76b", god: true },
+  { key: "god-gloves", name: "GODS GOLD GAUNTLETS", type: "gloves", tier: 4, defence: 30, power: 20, maxMp: 16, color: "#ffd76b", god: true },
 ];
 
+// The book that teaches the ceiling spell. Not a slot, so it is not part of the
+// wearable set, but it is found the same way.
+export const GOD_TOME = {
+  key: "tome-godlight", name: "TOME: GODS LIGHTNING", type: "spell",
+  grants: "godlight", color: "#fff6c9", god: true,
+};
+
 export const GOD_DROP_CHANCE = 0.3;
+
+// A golden chest holds nothing but god gold. It is the other way to find it,
+// for a hero who has not yet felled a boss.
+export const GOLDEN_CHEST_CHANCE = 0.05;
+
+export function godTreasure() {
+  return Math.random() < 0.18 ? GOD_TOME : pick(GOD_SET);
+}
 
 export function hasFullGodSet(gear) {
   return SLOTS.every((slot) => gear[slot] && gear[slot].god);
@@ -568,7 +591,9 @@ export function recalc(hero) {
   next.defence = HERO_DEFENCE + sum("defence");
   next.speed = HERO_SPEED + sum("speed");
   next.maxHp = HERO_MAX_HP + sum("maxHp") + (next.level - 1) * LEVEL_HP;
+  next.maxMp = HERO_MAX_MP + sum("maxMp") + (next.level - 1) * LEVEL_MP;
   next.hp = Math.min(next.hp, next.maxHp);
+  next.mp = Math.min(next.mp, next.maxMp);
   next.element = next.gear.weapon ? next.gear.weapon.element : null;
 
   return next;
@@ -668,7 +693,9 @@ export function gainXp(hero, amount) {
     next.xp -= next.level * XP_PER_LEVEL;
     next.level += 1;
     next.maxHp += LEVEL_HP;
+    next.maxMp += LEVEL_MP;
     next.hp = next.maxHp;
+    next.mp = next.maxMp;
   }
 
   if (next.level >= MAX_LEVEL) {
@@ -776,7 +803,7 @@ export function step(prev) {
         gold: 60 + Math.floor(Math.random() * 90),
         contents: rollChestContents()
           .concat(pick(SPECIAL_ITEMS))
-          .concat(Math.random() < GOD_DROP_CHANCE ? [pick(GOD_SET)] : []),
+          .concat(Math.random() < GOD_DROP_CHANCE ? [godTreasure()] : []),
       });
     } else if (Math.random() < DROP_CHANCE) {
       const loot = Math.random() < 0.4
@@ -794,7 +821,20 @@ export function step(prev) {
 
   if (living.length === 0) {
     waveGap += 1;
-    if (waveGap === 1 && Math.random() < CHEST_CHANCE) {
+    if (waveGap === 1 && hero.level >= BOSS_MIN_LEVEL && Math.random() < GOLDEN_CHEST_CHANCE) {
+      drops = drops.concat({
+        kind: "chest",
+        name: "GOLDEN CHEST",
+        color: "#ffd76b",
+        golden: true,
+        id: id(),
+        x: clamp(FIELD_MIN + Math.random() * (FIELD_MAX - FIELD_MIN), FIELD_MIN, FIELD_MAX),
+        born: tick,
+        mimic: false,
+        gold: 80 + Math.floor(Math.random() * 120),
+        contents: [godTreasure()],
+      });
+    } else if (waveGap === 1 && Math.random() < CHEST_CHANCE) {
       drops = drops.concat({
         kind: "chest",
         name: "CHEST",
@@ -1458,6 +1498,18 @@ function DropSprite({ drop }) {
 
 function EffectSprite({ kind }) {
   const art = EFFECT_ART[kind] || EFFECT_ART.melee;
+
+  if (art.bolt) {
+    return (
+      <span className="bs-bolt">
+        <svg viewBox="0 0 12 40" shapeRendering="crispEdges" preserveAspectRatio="none">
+          <path fill="#fff6c9" d="M6 0h3v10H6zM4 10h4v9H4zM6 19h4v11H6zM4 30h4v10H4z" />
+          <path fill="#ffffff" d="M7 0h1v10H7zM5 10h1v9H5zM7 19h1v11H7zM5 30h1v10H5z" />
+        </svg>
+      </span>
+    );
+  }
+
   return (
     <span
       className={"bs-plate bs-plate--fx" + (art.tall ? " bs-plate--tall" : "")}
@@ -1703,7 +1755,9 @@ export default function BattleScene() {
       {drops.map((d) => (
         <span
           key={d.id}
-          className={"bs-drop" + (d.kind === "chest" ? " bs-drop--chest" : "")}
+          className={"bs-drop"
+            + (d.kind === "chest" ? " bs-drop--chest" : "")
+            + (d.golden ? " bs-drop--golden" : "")}
           style={{ left: d.x + "%" }}
         >
           <DropSprite drop={d} />
