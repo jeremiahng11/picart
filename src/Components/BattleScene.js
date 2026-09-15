@@ -40,6 +40,10 @@ const CAST_TICKS = 4;
 const CAST_CHANCE = 0.55;
 const MP_REGEN_TICKS = 26;
 const CHEST_CHANCE = 0.45;
+const LOW_HP = 0.4;
+const REST_RANGE = 24;
+export const HP_REGEN_TICKS = 16;
+const EFFECT_LIFE = 5;
 
 const FIELD_MIN = 4;
 const FIELD_MAX = 94;
@@ -226,8 +230,12 @@ export function applyPickup(hero, entry, push) {
       next.powers = next.powers.concat(entry.grants);
     }
   } else if (entry.type === "weapon") {
-    next.weapon = Math.max(next.weapon, entry.power);
+    if (entry.power > next.weapon) {
+      next.weapon = entry.power;
+      next.gear = { ...next.gear, weapon: entry };
+    }
   } else if (entry.type === "relic") {
+    next.gear = { ...next.gear, relics: next.gear.relics.concat(entry.key) };
     if (entry.stat === "maxHp") {
       next.maxHp += entry.amount;
       next.hp += entry.amount;
@@ -256,6 +264,9 @@ export function initialState() {
       defence: HERO_DEFENCE,
       speed: HERO_SPEED,
       weapon: 0,
+      level: 1,
+      xp: 0,
+      gear: { weapon: null, relics: [] },
       powers: BASE_POWERS.slice(),
       bag: [],
       face: 1,
@@ -270,12 +281,47 @@ export function initialState() {
     monsters: spawnWave(16),
     drops: [],
     floats: [],
+    effects: [],
     waveGap: 0,
   };
 }
 
+const FLOAT_LANES = 4;
+
+// Anything landing on the same tick is given its own lane, so a chest handing
+// over three items prints three readable lines rather than one smear.
 function addFloat(floats, tick, text, color, x) {
-  return floats.concat({ id: id(), born: tick, text, color, x });
+  const sameTick = floats.filter((f) => f.born === tick).length;
+  return floats.concat({
+    id: id(),
+    born: tick,
+    text,
+    color,
+    x,
+    lane: sameTick % FLOAT_LANES,
+  });
+}
+
+function addEffect(effects, tick, key, x) {
+  return effects.concat({ id: id(), born: tick, key, x });
+}
+
+export const XP_PER_LEVEL = 40;
+export const LEVEL_HP = 6;
+
+// Levelling is deliberately gentle: a little more health and a little more bite
+// each time, so a long run gets easier without trivialising the monsters.
+export function gainXp(hero, amount) {
+  const next = { ...hero, xp: hero.xp + amount };
+
+  while (next.xp >= next.level * XP_PER_LEVEL) {
+    next.xp -= next.level * XP_PER_LEVEL;
+    next.level += 1;
+    next.maxHp += LEVEL_HP;
+    next.hp = next.maxHp;
+  }
+
+  return next;
 }
 
 function advance(unit) {
@@ -297,6 +343,7 @@ function advance(unit) {
 export function step(prev) {
   const tick = prev.tick + 1;
   let floats = prev.floats.filter((f) => tick - f.born < FLOAT_LIFE);
+  let effects = (prev.effects || []).filter((e) => tick - e.born < EFFECT_LIFE);
   let drops = prev.drops;
   let waveGap = prev.waveGap;
 
@@ -309,16 +356,29 @@ export function step(prev) {
     hero.mp = Math.min(hero.maxMp, hero.mp + 1);
   }
 
+  const threat = prev.monsters
+    .filter((m) => !m.dead)
+    .reduce((closest, m) => Math.min(closest, Math.abs(m.x - hero.x)), Infinity);
+
+  hero.hpTimer = (hero.hpTimer || 0) + 1;
+  if (hero.hpTimer >= HP_REGEN_TICKS) {
+    hero.hpTimer = 0;
+    if (threat > REST_RANGE) {
+      hero.hp = Math.min(hero.maxHp, hero.hp + 1);
+    }
+  }
+
   if (hero.dead) {
     hero.respawn -= 1;
     if (hero.respawn > 0) {
-      return { ...prev, tick, floats, hero, monsters };
+      return { ...prev, tick, floats, effects, hero, monsters };
     }
 
     floats = addFloat(floats, tick, "REVIVE", "#8affc1", 16);
     return {
       tick,
       floats,
+      effects,
       drops: [],
       waveGap: 0,
       hero: {
@@ -384,20 +444,31 @@ export function step(prev) {
       .slice()
       .sort((a, b) => Math.abs(a.x - hero.x) - Math.abs(b.x - hero.x))[0];
 
-    const loot = drops
-      .slice()
-      .sort((a, b) => Math.abs(a.x - hero.x) - Math.abs(b.x - hero.x))[0];
+    const nearest = (list) =>
+      list.slice().sort((a, b) => Math.abs(a.x - hero.x) - Math.abs(b.x - hero.x))[0];
+
+    const loot = nearest(drops);
+    const hurt = hero.hp <= hero.maxHp * LOW_HP;
+    const potion = hurt ? nearest(drops.filter((d) => d.kind === "potion")) : null;
 
     // Loot is worth a detour when nothing is in his face: either the field is
     // clear or the nearest thing on the ground is closer than the nearest
-    // monster.
+    // monster. When badly hurt, a potion outranks all of that.
     const goForLoot = loot && (!target || Math.abs(loot.x - hero.x) < Math.abs(target.x - hero.x));
+    const errand = potion || (goForLoot ? loot : null);
 
-    if (goForLoot && Math.abs(loot.x - hero.x) > PICKUP_RANGE - 1) {
-      const gap = loot.x - hero.x;
+    if (errand && Math.abs(errand.x - hero.x) > PICKUP_RANGE - 1) {
+      const gap = errand.x - hero.x;
       hero.face = gap >= 0 ? 1 : -1;
       hero.state = "walk";
       hero.x = clamp(hero.x + Math.sign(gap) * hero.speed, FIELD_MIN, FIELD_MAX);
+    } else if (hurt && !potion && target && Math.abs(target.x - hero.x) <= HERO_REACH + 5) {
+      // Nothing to drink and badly hurt, so give ground rather than trade blows.
+      // He keeps facing the monster while backing away.
+      const away = Math.sign(hero.x - target.x) || 1;
+      hero.face = target.x >= hero.x ? 1 : -1;
+      hero.state = "walk";
+      hero.x = clamp(hero.x + away * hero.speed, FIELD_MIN, FIELD_MAX);
     } else if (target) {
       const gap = target.x - hero.x;
       hero.face = gap >= 0 ? 1 : -1;
@@ -416,18 +487,29 @@ export function step(prev) {
             hero.cooldown = HERO_COOLDOWN + 2;
             hero.spell = power.key;
 
+            let earned = 0;
             monsters = monsters.map((m) => {
               if (!hits.has(m.id) || m.dead) {
                 return m;
               }
               const damage = rollBetween(power.dmg);
               const hp = m.hp - damage;
+              effects = addEffect(effects, tick, power.key, m.x);
               floats = addFloat(floats, tick, String(damage), power.color, m.x);
               if (hp <= 0) {
+                earned += m.maxHp;
                 return { ...m, hp: 0, dead: true, state: "dead", timer: DEATH_TICKS };
               }
               return { ...m, hp, state: "hurt", timer: HURT_TICKS };
             });
+
+            if (earned > 0) {
+              const before = hero.level;
+              hero = gainXp(hero, earned);
+              if (hero.level > before) {
+                floats = addFloat(floats, tick, "LEVEL " + hero.level, "#8affc1", hero.x);
+              }
+            }
 
             floats = addFloat(floats, tick, power.name, power.color, hero.x);
           } else {
@@ -439,16 +521,26 @@ export function step(prev) {
             hero.cooldown = HERO_COOLDOWN;
             hero.spell = null;
 
+            let earned = 0;
             monsters = monsters.map((m) => {
               if (m.id !== target.id || m.dead) {
                 return m;
               }
               const hp = m.hp - damage;
               if (hp <= 0) {
+                earned += m.maxHp;
                 return { ...m, hp: 0, dead: true, state: "dead", timer: DEATH_TICKS };
               }
               return { ...m, hp, state: "hurt", timer: HURT_TICKS };
             });
+
+            if (earned > 0) {
+              const before = hero.level;
+              hero = gainXp(hero, earned);
+              if (hero.level > before) {
+                floats = addFloat(floats, tick, "LEVEL " + hero.level, "#8affc1", hero.x);
+              }
+            }
 
             floats = addFloat(
               floats,
@@ -547,7 +639,7 @@ export function step(prev) {
     drops = kept;
   }
 
-  return { tick, hero, monsters, drops, floats, waveGap };
+  return { tick, hero, monsters, drops, floats, effects, waveGap };
 }
 
 function prefersReducedMotion() {
@@ -558,15 +650,22 @@ function prefersReducedMotion() {
   );
 }
 
-function HeroSprite() {
+function HeroSprite({ weapon, shielded }) {
+  // Three blades and two shields, so an upgrade is visible on the field rather
+  // than only in the numbers.
+  const blade =
+    weapon >= 5
+      ? { x: 13, w: 3, top: 0, edge: "#ffd76b", body: "#e8dcae" }
+      : weapon >= 3
+        ? { x: 14, w: 2, top: 1, edge: "#bfe9ff", body: "#8fd7ff" }
+        : { x: 14, w: 2, top: 1, edge: "#eef2ff", body: "#b9c2de" };
+
   return (
     <svg viewBox="0 0 18 20" shapeRendering="crispEdges">
       <g className="bs-hero-body">
-        {/* cape, behind everything */}
         <path fill="#9e2b45" d="M4 7h3v9H4z" />
         <path fill="#b8324f" d="M5 7h2v8H5z" />
 
-        {/* plumed helm */}
         <rect x="8" y="0" width="2" height="1" fill="#ff8fa8" />
         <rect x="8" y="1" width="2" height="1" fill="#ff6b8a" />
         <rect x="7" y="1" width="1" height="1" fill="#d1425f" />
@@ -575,7 +674,6 @@ function HeroSprite() {
         <rect x="6" y="5" width="6" height="1" fill="#9aa3bb" />
         <rect x="7" y="4" width="4" height="1" fill="#2b2340" />
 
-        {/* pauldrons and chest */}
         <rect x="4" y="6" width="3" height="2" fill="#cfd6e6" />
         <rect x="11" y="6" width="3" height="2" fill="#cfd6e6" />
         <rect x="4" y="6" width="3" height="1" fill="#eef2ff" />
@@ -586,25 +684,33 @@ function HeroSprite() {
         <rect x="6" y="12" width="6" height="1" fill="#6b4a2a" />
         <rect x="8" y="12" width="2" height="1" fill="#c9962b" />
 
-        {/* shield arm */}
-        <rect x="2" y="8" width="4" height="5" fill="#c9962b" />
-        <rect x="2" y="8" width="4" height="1" fill="#ffd76b" />
-        <rect x="3" y="10" width="2" height="2" fill="#8a5f1c" />
+        {shielded ? (
+          <g>
+            <rect x="1" y="7" width="5" height="7" fill="#cfd6e6" />
+            <rect x="1" y="7" width="5" height="1" fill="#eef2ff" />
+            <rect x="2" y="9" width="3" height="3" fill="#4a7fe0" />
+            <rect x="3" y="10" width="1" height="1" fill="#ffd76b" />
+          </g>
+        ) : (
+          <g>
+            <rect x="2" y="8" width="4" height="5" fill="#c9962b" />
+            <rect x="2" y="8" width="4" height="1" fill="#ffd76b" />
+            <rect x="3" y="10" width="2" height="2" fill="#8a5f1c" />
+          </g>
+        )}
 
-        {/* legs and boots */}
         <rect x="6" y="13" width="2" height="4" fill="#2c1f4e" />
         <rect x="10" y="13" width="2" height="4" fill="#2c1f4e" />
         <rect x="5" y="17" width="4" height="2" fill="#6b4a2a" />
         <rect x="9" y="17" width="4" height="2" fill="#6b4a2a" />
       </g>
 
-      {/* Its own group so the sword can sweep independently of the body. */}
       <g className="bs-hero-arm">
         <rect x="12" y="7" width="2" height="3" fill="#cfd6e6" />
         <rect x="13" y="8" width="4" height="1" fill="#c9962b" />
-        <rect x="14" y="1" width="2" height="7" fill="#b9c2de" />
-        <rect x="14" y="1" width="1" height="7" fill="#eef2ff" />
-        <rect x="14" y="0" width="2" height="1" fill="#ffffff" />
+        <rect x={blade.x} y={blade.top} width={blade.w} height={8 - blade.top} fill={blade.body} />
+        <rect x={blade.x} y={blade.top} width="1" height={8 - blade.top} fill={blade.edge} />
+        <rect x={blade.x} y={Math.max(0, blade.top - 1)} width={blade.w} height="1" fill="#ffffff" />
       </g>
     </svg>
   );
@@ -781,6 +887,74 @@ function Bar({ value, max, color, width }) {
   );
 }
 
+function StatusSheet({ hero, onClose }) {
+  const known = POWERS.filter((p) => hero.powers.indexOf(p.key) !== -1);
+  const relics = hero.gear.relics
+    .map((key) => SPECIAL_ITEMS.find((i) => i.key === key))
+    .filter(Boolean);
+  const trophies = new Set(hero.bag.filter((b) => COMMON_ITEMS.some((i) => i.key === b)));
+
+  return (
+    // Anywhere outside closes it, which is why the backdrop carries the handler.
+    <div className="bs-sheet-wrap" onClick={onClose} role="presentation">
+      <div className="bs-sheet">
+        <div className="bs-sheet__head">
+          <span>HERO</span>
+          <span>LV {hero.level}</span>
+        </div>
+
+        <dl className="bs-sheet__stats">
+          <dt>HP</dt><dd>{hero.hp} / {hero.maxHp}</dd>
+          <dt>MP</dt><dd>{hero.mp} / {hero.maxMp}</dd>
+          <dt>XP</dt><dd>{hero.xp} / {hero.level * XP_PER_LEVEL}</dd>
+          <dt>ATK</dt><dd>{3 + hero.weapon} - {6 + hero.weapon}</dd>
+          <dt>DEF</dt><dd>{hero.defence}</dd>
+          <dt>SPD</dt><dd>{hero.speed.toFixed(1)}</dd>
+        </dl>
+
+        <div className="bs-sheet__row">
+          <span className="bs-sheet__label">WEAPON</span>
+          <span>{hero.gear.weapon ? hero.gear.weapon.name : "PLAIN SWORD"}</span>
+        </div>
+
+        <div className="bs-sheet__row">
+          <span className="bs-sheet__label">ARMOUR</span>
+          <span>{hero.defence > HERO_DEFENCE ? "AEGIS" : "LEATHER"}</span>
+        </div>
+
+        <div className="bs-sheet__row bs-sheet__row--wrap">
+          <span className="bs-sheet__label">SPELLS</span>
+          <span>
+            {known.map((p) => (
+              <span key={p.key} className="bs-tag" style={{ color: p.color }}>
+                {p.name} {p.cost}
+              </span>
+            ))}
+          </span>
+        </div>
+
+        {relics.length > 0 && (
+          <div className="bs-sheet__row bs-sheet__row--wrap">
+            <span className="bs-sheet__label">RELICS</span>
+            <span>
+              {relics.map((r) => (
+                <span key={r.key} className="bs-tag" style={{ color: r.color }}>{r.name}</span>
+              ))}
+            </span>
+          </div>
+        )}
+
+        <div className="bs-sheet__row">
+          <span className="bs-sheet__label">TROPHIES</span>
+          <span>{trophies.size} / {COMMON_ITEMS.length}</span>
+        </div>
+
+        <p className="bs-sheet__hint">CLICK ANYWHERE TO CLOSE</p>
+      </div>
+    </div>
+  );
+}
+
 export default function BattleScene() {
   const [state, setState] = React.useState(initialState);
   const still = React.useMemo(prefersReducedMotion, []);
@@ -793,7 +967,8 @@ export default function BattleScene() {
     return () => clearInterval(handle);
   }, [still]);
 
-  const { hero, monsters, drops, floats } = state;
+  const [showSheet, setShowSheet] = React.useState(false);
+  const { hero, monsters, drops, floats, effects } = state;
 
   return (
     <div className="bs" aria-hidden="true">
@@ -807,7 +982,12 @@ export default function BattleScene() {
         </span>
       ))}
 
+      {(effects || []).map((e) => (
+        <span key={e.id} className={"bs-fx bs-fx--" + e.key} style={{ left: e.x + "%" }} />
+      ))}
+
       <span
+        onClick={() => setShowSheet(true)}
         className={"bs-unit bs-unit--hero bs-move-walk is-" + hero.state
           + (hero.state === "cast" && hero.spell ? " spell-" + hero.spell : "")}
         style={{ left: hero.x + "%" }}
@@ -818,7 +998,7 @@ export default function BattleScene() {
         </span>
         <span className="bs-facing" style={{ transform: "scaleX(" + hero.face + ")" }}>
           <span className="bs-sprite">
-            <HeroSprite />
+            <HeroSprite weapon={hero.weapon} shielded={hero.defence > HERO_DEFENCE} />
           </span>
         </span>
       </span>
@@ -841,10 +1021,16 @@ export default function BattleScene() {
       ))}
 
       {floats.map((f) => (
-        <span key={f.id} className="bs-float" style={{ left: f.x + "%", color: f.color }}>
+        <span
+          key={f.id}
+          className="bs-float"
+          style={{ left: f.x + "%", color: f.color, bottom: 34 + (f.lane || 0) * 11 + "px" }}
+        >
           {f.text}
         </span>
       ))}
+
+      {showSheet && <StatusSheet hero={hero} onClose={() => setShowSheet(false)} />}
     </div>
   );
 }

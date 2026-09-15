@@ -1,7 +1,7 @@
 import {
-  step, initialState, spawnWave, choosePower, applyPickup, rollChestContents,
+  step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp,
   MONSTERS, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS,
-  HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE,
+  HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS,
 } from './BattleScene';
 
 // The skirmish rolls dice, so tests pin Math.random to make a frame
@@ -441,4 +441,100 @@ test('a chest hands over everything inside it at once', () => {
   expect(after.drops).toHaveLength(0);
   expect(after.hero.powers).toContain(tome.grants);
   expect(after.hero[relic.stat]).toBeGreaterThan(state.hero[relic.stat]);
+});
+
+test('experience accumulates and levels raise the health ceiling', () => {
+  const base = initialState().hero;
+  const after = gainXp(base, XP_PER_LEVEL);
+
+  expect(after.level).toBe(base.level + 1);
+  expect(after.maxHp).toBeGreaterThan(base.maxHp);
+  expect(after.hp).toBe(after.maxHp);
+});
+
+test('a big haul of experience can carry more than one level', () => {
+  const base = initialState().hero;
+  const after = gainXp(base, XP_PER_LEVEL * 12);
+
+  expect(after.level).toBeGreaterThan(base.level + 1);
+  expect(after.xp).toBeGreaterThanOrEqual(0);
+  expect(after.xp).toBeLessThan(after.level * XP_PER_LEVEL);
+});
+
+test('simultaneous pickups are given separate lanes so the text cannot overlap', () => {
+  const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
+  const relic = SPECIAL_ITEMS.find((i) => i.type === 'relic');
+  const state = {
+    ...heroAt(40, { cooldown: 999 }),
+    monsters: [],
+    drops: [{ kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 11, x: 40, born: 0, contents: [tome, relic] }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  const landed = after.floats.filter((f) => f.born === after.tick);
+  expect(landed.length).toBeGreaterThan(1);
+  expect(new Set(landed.map((f) => f.lane)).size).toBe(landed.length);
+});
+
+test('a wounded hero goes for a potion before anything else', () => {
+  const state = {
+    ...heroAt(50, { hp: 6, cooldown: 999 }),
+    monsters: [monster('imp', 54)],
+    drops: [{ kind: 'potion', label: '+HP', color: '#ff6b8a', id: 12, x: 20, born: 0 }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  // He walks away from the monster and toward the potion, even though the imp
+  // lands a blow in the same frame.
+  expect(after.hero.x).toBeLessThan(50);
+});
+
+test('a wounded hero with nothing to drink gives ground instead of trading blows', () => {
+  const state = {
+    ...heroAt(50, { hp: 6, cooldown: 999 }),
+    monsters: [monster('imp', 55)],
+    drops: [],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.hero.x).toBeLessThan(50);
+  expect(after.hero.face).toBe(1);
+});
+
+test('a healthy hero still closes in rather than retreating', () => {
+  const state = { ...heroAt(50, { cooldown: 999 }), monsters: [monster('imp', 80)], drops: [] };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.hero.x).toBeGreaterThan(50);
+});
+
+test('wounds close slowly when nothing is nearby', () => {
+  const state = {
+    ...heroAt(50, { hp: 10, cooldown: 999, hpTimer: HP_REGEN_TICKS - 1 }),
+    monsters: [],
+    drops: [],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.hero.hp).toBe(11);
+});
+
+test('wounds do not close while a monster is breathing down his neck', () => {
+  const state = {
+    ...heroAt(50, { hp: 10, cooldown: 999, hpTimer: HP_REGEN_TICKS - 1 }),
+    monsters: [monster('slime', 56)],
+    drops: [],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.hero.hp).toBeLessThanOrEqual(10);
+});
+
+test('casting leaves a visible effect at the target', () => {
+  const state = { ...heroAt(16), monsters: [monster('skeleton', 21)] };
+  const after = withRandom(0.1, () => step(state));
+
+  expect(after.hero.state).toBe('cast');
+  expect(after.effects.length).toBeGreaterThan(0);
+  expect(POWERS.some((p) => p.key === after.effects[0].key)).toBe(true);
 });
