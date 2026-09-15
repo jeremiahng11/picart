@@ -117,6 +117,35 @@ test('the hero turns and walks left toward a monster behind him', () => {
   expect(after.hero.face).toBe(-1);
 });
 
+// The standing sprite is a single frozen frame, so the direction the hero was
+// last travelling is the only thing left saying which way he is turned. Clearing
+// it on the way into idle would spin him round the instant he came to rest.
+test('a hero who stops keeps facing the way he was last going', () => {
+  const state = {
+    ...heroAt(50, { face: -1, wanderTimer: 4, wanderTo: 20 }),
+    monsters: [],
+    waveGap: 0,
+    travelling: false,
+  };
+  const after = withRandom(0.5, () => step(state));
+
+  expect(after.hero.state).toBe('idle');
+  expect(after.hero.face).toBe(-1);
+});
+
+test('a hero standing still does not drift', () => {
+  const state = {
+    ...heroAt(50, { face: 1, wanderTimer: 4, wanderTo: 20 }),
+    monsters: [],
+    waveGap: 0,
+    travelling: false,
+  };
+  const after = withRandom(0.5, () => step(state));
+
+  expect(after.hero.state).toBe('idle');
+  expect(after.hero.x).toBe(50);
+});
+
 test('the hero picks whichever monster is nearest, on either side', () => {
   const state = {
     ...heroAt(50),

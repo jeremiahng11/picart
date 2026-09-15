@@ -1229,6 +1229,15 @@ body {
 .bs-hero-legs { transform-box: fill-box; transform-origin: 50% 0%; }
 .bs-unit--hero.is-walk .bs-hero-legs { animation: bs-stride 0.34s steps(2, end) infinite; }
 
+/* A hero who has stopped stands still. The plate's four frame cycle is a
+   marching bob, so leaving it running read as walking on the spot whenever he
+   paused. Frame 0 is the grounded pose, and .bs-facing still carries whichever
+   way he last turned, so he holds that stance facing that direction. */
+.bs-unit--hero.is-idle .bs-plate {
+  animation: none;
+  background-position-x: 0;
+}
+
 @keyframes bs-cape {
   0%, 100% { transform: skewX(0deg); }
   50% { transform: skewX(-7deg); }
