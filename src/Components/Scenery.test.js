@@ -1,4 +1,4 @@
-import { sceneAt, BIOMES, PHASES } from './Scenery';
+import { sceneAt, isInterior, BIOMES, PHASES, PHASE_RUN, CYCLE } from './Scenery';
 
 test('eight biomes, each with a day and a night, gives sixteen looks', () => {
   expect(BIOMES).toHaveLength(8);
@@ -6,34 +6,80 @@ test('eight biomes, each with a day and a night, gives sixteen looks', () => {
   expect(new Set(BIOMES).size).toBe(8);
 
   const looks = new Set();
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < CYCLE; i++) {
     const { biome, phase } = sceneAt(i);
     looks.add(biome + ':' + phase);
   }
   expect(looks.size).toBe(16);
 });
 
-test('the journey alternates day and night within each biome', () => {
-  for (let i = 0; i < 16; i += 2) {
-    expect(sceneAt(i).phase).toBe('day');
-    expect(sceneAt(i + 1).phase).toBe('night');
-    expect(sceneAt(i).biome).toBe(sceneAt(i + 1).biome);
+test('every land is seen under both skies within one cycle', () => {
+  const seen = {};
+  for (let i = 0; i < CYCLE; i++) {
+    const { biome, phase } = sceneAt(i);
+    seen[biome] = seen[biome] || new Set();
+    seen[biome].add(phase);
+  }
+
+  for (const biome of BIOMES) {
+    expect(Array.from(seen[biome]).sort()).toEqual(['day', 'night']);
   }
 });
 
+test('the sky holds for a run of scenes instead of flickering every scene', () => {
+  for (let i = 0; i < CYCLE; i += PHASE_RUN) {
+    const run = [];
+    for (let k = 0; k < PHASE_RUN; k++) {
+      run.push(sceneAt(i + k).phase);
+    }
+    expect(new Set(run).size).toBe(1);
+  }
+});
+
+test('a daylit run is followed by a dark one', () => {
+  for (let i = 0; i < CYCLE; i += PHASE_RUN) {
+    expect(sceneAt(i).phase).not.toBe(sceneAt(i + PHASE_RUN).phase);
+  }
+});
+
+test('the land changes every scene even while the sky holds', () => {
+  for (let i = 0; i < CYCLE - 1; i++) {
+    expect(sceneAt(i).biome).not.toBe(sceneAt(i + 1).biome);
+  }
+});
+
+test('an interior can be entered under one sky and left under another', () => {
+  const crossings = [];
+  for (let i = 0; i < CYCLE; i++) {
+    if (isInterior(sceneAt(i).biome) && sceneAt(i).phase !== sceneAt(i + 1).phase) {
+      crossings.push(i);
+    }
+  }
+  expect(crossings.length).toBeGreaterThan(0);
+});
+
+test('castle and dungeon are the interiors', () => {
+  expect(isInterior('castle')).toBe(true);
+  expect(isInterior('dungeon')).toBe(true);
+  expect(isInterior('forest')).toBe(false);
+});
+
 test('the cycle wraps rather than running off the end', () => {
-  expect(sceneAt(16)).toEqual(sceneAt(0));
-  expect(sceneAt(33)).toEqual(sceneAt(1));
-  expect(sceneAt(-1)).toEqual(sceneAt(15));
+  expect(sceneAt(CYCLE)).toEqual(sceneAt(0));
+  expect(sceneAt(CYCLE * 2 + 5)).toEqual(sceneAt(5));
+  expect(sceneAt(-1)).toEqual(sceneAt(CYCLE - 1));
 });
 
 test('the original night scene is still in the rotation, with a day of its own', () => {
   expect(BIOMES).toContain('plains');
   expect(sceneAt(0)).toEqual({ biome: 'plains', phase: 'day' });
-  expect(sceneAt(1)).toEqual({ biome: 'plains', phase: 'night' });
-});
 
-test('the journey visits an interior as well as open country', () => {
-  expect(BIOMES).toContain('castle');
-  expect(BIOMES).toContain('dungeon');
+  const plainsNight = [];
+  for (let i = 0; i < CYCLE; i++) {
+    const s = sceneAt(i);
+    if (s.biome === 'plains' && s.phase === 'night') {
+      plainsNight.push(i);
+    }
+  }
+  expect(plainsNight.length).toBeGreaterThan(0);
 });

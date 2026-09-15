@@ -25,6 +25,8 @@
 
 import React from "react";
 
+export const CYCLE = 24;
+
 export const BIOMES = [
   "plains",
   "forest",
@@ -38,14 +40,26 @@ export const BIOMES = [
 
 export const PHASES = ["day", "night"];
 
-// Each step of the journey is one biome in one phase, so the cycle runs
-// forest day, forest night, desert day, and so on.
+// How many scenes a phase holds for. Alternating every scene made the sky
+// flicker between lands; a run means the hero travels through several daylit
+// places, then several dark ones.
+export const PHASE_RUN = 3;
+
+// Biome advances every scene, phase only every PHASE_RUN. The two cycles are of
+// different lengths, which is what eventually pairs each land with both of its
+// palettes instead of freezing it in one.
 export function sceneAt(step) {
-  const wrapped = ((step % (BIOMES.length * 2)) + BIOMES.length * 2) % (BIOMES.length * 2);
+  const wrapped = ((step % CYCLE) + CYCLE) % CYCLE;
   return {
-    biome: BIOMES[Math.floor(wrapped / 2)],
-    phase: PHASES[wrapped % 2],
+    biome: BIOMES[wrapped % BIOMES.length],
+    phase: PHASES[Math.floor(wrapped / PHASE_RUN) % 2],
   };
+}
+
+// Interiors are lit by their own torches, so the hero can step into one under
+// any sky and come out under either.
+export function isInterior(biome) {
+  return biome === "castle" || biome === "dungeon";
 }
 
 export default function Scenery({ step }) {
