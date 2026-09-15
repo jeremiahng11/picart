@@ -93,7 +93,7 @@ test('clicking the hero opens his status sheet, and clicking away closes it', ()
   // rather than by role.
   fireEvent.click(container.querySelector('.bs-hit'));
   expect(screen.getByText(/CLICK ANYWHERE TO CLOSE/i)).toBeInTheDocument();
-  expect(screen.getByText(/PLAIN SWORD/i)).toBeInTheDocument();
+  expect(screen.getByText(/WORN SWORD/i)).toBeInTheDocument();
 
   fireEvent.click(screen.getByText(/CLICK ANYWHERE TO CLOSE/i).closest('.bs-sheet-wrap'));
   expect(screen.queryByText(/CLICK ANYWHERE TO CLOSE/i)).not.toBeInTheDocument();
@@ -118,8 +118,12 @@ test('equipment slots are listed with their fallbacks when nothing is found yet'
   const { container } = renderConnected();
   fireEvent.click(container.querySelector('.bs-hit'));
 
-  expect(screen.getByText('PLAIN SWORD')).toBeInTheDocument();
-  expect(screen.getByText('TUNIC')).toBeInTheDocument();
-  expect(screen.getByText('BUCKLER')).toBeInTheDocument();
+  // He sets out in clothes with a worn sword: every slot but the weapon is empty.
+  expect(screen.getByText('WORN SWORD')).toBeInTheDocument();
+  expect(screen.getByText('CLOTH SHIRT')).toBeInTheDocument();
+  expect(screen.getByText('CLOTH PANTS')).toBeInTheDocument();
+  expect(screen.getByText('WORN SHOES')).toBeInTheDocument();
+  expect(screen.getAllByText('BARE HANDS').length).toBeGreaterThan(0);
+  expect(screen.getByText('NONE')).toBeInTheDocument();
   expect(screen.getByText(/LV 1 \/ 99/)).toBeInTheDocument();
 });

@@ -1251,7 +1251,38 @@ body {
 
 .bs-sprite { display: block; }
 .bs-sprite svg { display: block; height: 26px; width: auto; }
-.bs-unit--hero .bs-sprite svg { height: 40px; }
+.bs-unit--hero .bs-sprite svg { height: 48px; }
+
+/* A boss towers over the rank and file. */
+.bs-unit--boss .bs-sprite svg { height: 74px; }
+.bs-unit--boss .bs-bar { width: 44px; height: 5px; }
+.bs-unit--boss { filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.5)); }
+
+/* An elemental blade burns, freezes or crackles in the hand. */
+.elem-flame .bs-hero-arm { animation: bs-elem-flame 0.7s ease-in-out infinite; }
+.elem-frost .bs-hero-arm { animation: bs-elem-frost 1.5s ease-in-out infinite; }
+.elem-storm .bs-hero-arm { animation: bs-elem-storm 0.5s steps(3, end) infinite; }
+.elem-holy .bs-hero-arm { animation: bs-elem-holy 1.8s ease-in-out infinite; }
+
+@keyframes bs-elem-flame {
+  0%, 100% { filter: drop-shadow(0 0 2px #ff9b4a); }
+  50% { filter: drop-shadow(0 0 6px #ffd76b) brightness(1.2); }
+}
+
+@keyframes bs-elem-frost {
+  0%, 100% { filter: drop-shadow(0 0 2px #8fd7ff); }
+  50% { filter: drop-shadow(0 0 7px #dff3ff) brightness(1.15); }
+}
+
+@keyframes bs-elem-storm {
+  0%, 100% { filter: drop-shadow(0 0 2px #d7b3ff); }
+  33% { filter: drop-shadow(0 0 8px #f0e2ff) brightness(1.35); }
+}
+
+@keyframes bs-elem-holy {
+  0%, 100% { filter: drop-shadow(0 0 3px #ffd76b); }
+  50% { filter: drop-shadow(0 0 9px #fff6c9) brightness(1.25); }
+}
 
 /* Cape and legs animate independently of the body, which is what stops the
    walk reading as a sprite being slid along the ground. */

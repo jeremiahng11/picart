@@ -1,6 +1,6 @@
 import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
-  MONSTERS, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS,
+  MONSTERS, BOSSES, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
   HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
 
@@ -255,18 +255,32 @@ test('powers cost a third, two thirds or all of the mana pool', () => {
   }
 });
 
-test('the hero starts with three spells and can reach six', () => {
-  expect(BASE_POWERS).toHaveLength(3);
-  expect(POWERS.filter((p) => !p.base)).toHaveLength(3);
+test('the hero sets out knowing one spell and can learn the rest', () => {
+  expect(BASE_POWERS).toEqual(['flame']);
 
   const tomes = SPECIAL_ITEMS.filter((i) => i.type === 'spell');
-  expect(tomes).toHaveLength(3);
+  expect(tomes).toHaveLength(POWERS.length - 1);
 
   let hero = { ...initialState().hero };
+  expect(hero.powers).toHaveLength(1);
+
   for (const tome of tomes) {
     hero = applyPickup(hero, tome, () => {});
   }
-  expect(hero.powers).toHaveLength(6);
+  expect(hero.powers).toHaveLength(POWERS.length);
+});
+
+test('the hero sets out in clothes with a worn sword and no shield', () => {
+  const hero = initialState().hero;
+
+  expect(hero.gear.weapon.key).toBe('worn-sword');
+  expect(hero.gear.weapon.power).toBe(0);
+  expect(hero.gear.shield).toBeNull();
+  expect(hero.gear.top).toBeNull();
+  expect(hero.gear.legs).toBeNull();
+  expect(hero.gear.boots).toBeNull();
+  expect(hero.gear.gloves).toBeNull();
+  expect(hero.defence).toBe(HERO_DEFENCE);
 });
 
 test('damage climbs with the tier of the spell', () => {
@@ -278,9 +292,10 @@ test('damage climbs with the tier of the spell', () => {
 });
 
 test('the hero casts the strongest power he can afford', () => {
-  expect(choosePower(BASE_POWERS, HERO_MAX_MP, 0).key).toBe('nova');
-  expect(choosePower(BASE_POWERS, 8, 0).key).toBe('flame');
-  expect(choosePower(BASE_POWERS, 4, 0).key).toBe('spark');
+  const all = POWERS.map((p) => p.key);
+  expect(choosePower(all, HERO_MAX_MP, 0).tier).toBe(3);
+  expect(choosePower(all, 8, 0).tier).toBe(2);
+  expect(choosePower(all, 4, 0).tier).toBe(1);
 });
 
 test('no power is cast without the mana for it', () => {
@@ -298,11 +313,13 @@ test('a spell he has not learned is never cast', () => {
 });
 
 test('casting spends the mana it costs', () => {
-  const state = { ...heroAt(16), monsters: [monster('skeleton', 20)] };
+  const base = heroAt(16);
+  const state = { ...base, hero: { ...base.hero, powers: ['flame'] }, monsters: [monster('skeleton', 20)] };
   const after = withRandom(0.1, () => step(state));
 
+  const flame = POWERS.find((p) => p.key === 'flame');
   expect(after.hero.state).toBe('cast');
-  expect(after.hero.mp).toBe(HERO_MAX_MP - HERO_MAX_MP);
+  expect(after.hero.mp).toBe(HERO_MAX_MP - flame.cost);
   expect(after.monsters[0].hp).toBeLessThan(after.monsters[0].maxHp);
 });
 
@@ -315,7 +332,9 @@ test('the strongest power strikes every monster on the field', () => {
       { ...monster('ghost', 80), id: 3 },
     ],
   };
-  const after = withRandom(0.1, () => step(state));
+  const base = heroAt(50);
+  const withNova = { ...state, hero: { ...base.hero, x: 50, powers: ['nova'] } };
+  const after = withRandom(0.1, () => step(withNova));
 
   expect(after.hero.state).toBe('cast');
   for (const m of after.monsters) {
@@ -350,11 +369,27 @@ test('armour takes the edge off every blow', () => {
 });
 
 
-test('there are twenty items, half of them special', () => {
-  expect(ITEMS).toHaveLength(20);
-  expect(COMMON_ITEMS).toHaveLength(10);
-  expect(SPECIAL_ITEMS).toHaveLength(10);
-  expect(new Set(ITEMS.map((i) => i.key)).size).toBe(20);
+test('the catalogue is large and every key is unique', () => {
+  expect(COMMON_ITEMS.length).toBeGreaterThanOrEqual(10);
+  expect(SPECIAL_ITEMS.length).toBeGreaterThanOrEqual(20);
+  expect(new Set(ITEMS.map((i) => i.key)).size).toBe(ITEMS.length);
+});
+
+test('every equipment slot has several pieces to find', () => {
+  for (const slot of SLOTS) {
+    const pieces = SPECIAL_ITEMS.filter((i) => i.type === slot);
+    expect(pieces.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(pieces.map((p) => p.tier)).size).toBe(pieces.length);
+  }
+});
+
+test('some blades carry an element and some do not', () => {
+  const weapons = SPECIAL_ITEMS.filter((i) => i.type === 'weapon');
+  const elemental = weapons.filter((w) => w.element);
+
+  expect(elemental.length).toBeGreaterThanOrEqual(3);
+  expect(weapons.length).toBeGreaterThan(elemental.length);
+  expect(new Set(elemental.map((w) => w.element)).size).toBe(elemental.length);
 });
 
 test('no item is gold or a potion', () => {
@@ -415,28 +450,41 @@ test('a better blade replaces a worse one but never downgrades', () => {
   expect(hero.weapon).toBe(blades[blades.length - 1].power);
 });
 
-test('armour and shields raise defence while they are worn', () => {
+test('every worn piece adds its own defence', () => {
   const base = initialState().hero;
-  const armour = SPECIAL_ITEMS.find((i) => i.type === 'armour');
-  const shield = SPECIAL_ITEMS.find((i) => i.type === 'shield');
+  let hero = base;
+  let expected = base.defence;
 
-  const wearing = applyPickup(applyPickup(base, armour, () => {}), shield, () => {});
+  for (const slot of ['top', 'legs', 'boots', 'gloves', 'shield']) {
+    const piece = SPECIAL_ITEMS.filter((i) => i.type === slot).sort((a, b) => b.tier - a.tier)[0];
+    hero = applyPickup(hero, piece, () => {});
+    expected += piece.defence || 0;
+  }
 
-  expect(wearing.defence).toBe(base.defence + armour.defence + shield.defence);
-  expect(wearing.maxHp).toBeGreaterThan(base.maxHp);
-  expect(wearing.gear.armour.key).toBe(armour.key);
-  expect(wearing.gear.shield.key).toBe(shield.key);
+  expect(hero.defence).toBe(expected);
+  expect(hero.maxHp).toBeGreaterThan(base.maxHp);
+});
+
+test('taking off a piece takes its bonus with it', () => {
+  const base = initialState().hero;
+  const top = SPECIAL_ITEMS.find((i) => i.type === 'top' && i.tier === 3);
+
+  const dressed = applyPickup(base, top, () => {});
+  const stripped = recalc({ ...dressed, gear: { ...dressed.gear, top: null } });
+
+  expect(stripped.defence).toBe(base.defence);
+  expect(stripped.maxHp).toBe(base.maxHp);
 });
 
 test('a weaker piece is kept rather than worn', () => {
   const base = initialState().hero;
-  const [weak, strong] = SPECIAL_ITEMS.filter((i) => i.type === 'armour')
+  const [weak, strong] = SPECIAL_ITEMS.filter((i) => i.type === 'top')
     .sort((a, b) => a.tier - b.tier);
 
   let hero = applyPickup(base, strong, () => {});
   hero = applyPickup(hero, weak, () => {});
 
-  expect(hero.gear.armour.key).toBe(strong.key);
+  expect(hero.gear.top.key).toBe(strong.key);
   expect(hero.inventory.some((i) => i.key === weak.key)).toBe(true);
 });
 
@@ -462,7 +510,8 @@ test('a better piece sitting in the pack is drawn by reequip', () => {
 
   expect(after.gear.weapon.key).toBe(strong.key);
   expect(after.weapon).toBe(strong.power);
-  expect(after.inventory).toHaveLength(0);
+  // The blade it replaced is kept, not discarded.
+  expect(after.inventory.map((i) => i.key)).toEqual(['worn-sword']);
 });
 
 test('a potion found at full health is kept rather than wasted', () => {
@@ -509,7 +558,7 @@ test('the hero walks over to fetch loot when nothing is on him', () => {
 
 test('a chest hands over everything inside it at once', () => {
   const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
-  const armour = SPECIAL_ITEMS.find((i) => i.type === 'armour');
+  const armour = SPECIAL_ITEMS.find((i) => i.type === 'top');
   const state = {
     ...heroAt(40, { cooldown: 999 }),
     monsters: [],
@@ -519,7 +568,7 @@ test('a chest hands over everything inside it at once', () => {
 
   expect(after.drops).toHaveLength(0);
   expect(after.hero.powers).toContain(tome.grants);
-  expect(after.hero.gear.armour.key).toBe(armour.key);
+  expect(after.hero.gear.top.key).toBe(armour.key);
 });
 
 test('experience accumulates and levels raise the health ceiling', () => {
@@ -542,7 +591,7 @@ test('a big haul of experience can carry more than one level', () => {
 
 test('simultaneous pickups are given separate lanes so the text cannot overlap', () => {
   const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
-  const armour = SPECIAL_ITEMS.find((i) => i.type === 'armour');
+  const armour = SPECIAL_ITEMS.find((i) => i.type === 'top');
   const state = {
     ...heroAt(40, { cooldown: 999 }),
     monsters: [],
@@ -738,4 +787,41 @@ test('a monster still standing stops the journey', () => {
   }));
 
   expect(s.travelling).toBe(false);
+});
+
+
+test('a boss is rare, alone, and far sturdier than a common monster', () => {
+  const toughest = Math.max(...MONSTERS.map((m) => m.maxHp));
+
+  for (const boss of BOSSES) {
+    expect(boss.boss).toBe(true);
+    expect(boss.maxHp).toBeGreaterThan(toughest * 3);
+  }
+
+  let bossWaves = 0;
+  let normalWaves = 0;
+  for (let i = 0; i < 600; i++) {
+    const wave = spawnWave(50);
+    if (wave.some((m) => m.boss)) {
+      bossWaves += 1;
+      expect(wave).toHaveLength(1);
+    } else {
+      normalWaves += 1;
+    }
+  }
+
+  expect(bossWaves).toBeGreaterThan(0);
+  expect(normalWaves).toBeGreaterThan(bossWaves * 2);
+});
+
+test('a felled boss always leaves a hoard', () => {
+  const dragon = BOSSES[0];
+  const state = {
+    ...heroAt(40, { cooldown: 999 }),
+    monsters: [{ ...dragon, id: 77, hp: 0, x: 90, face: -1, state: 'dead', timer: 1, slot: 0, dead: true }],
+    drops: [],
+  };
+  const after = withRandom(0.99, () => step(state));
+
+  expect(after.drops.some((d) => d.kind === 'chest')).toBe(true);
 });
