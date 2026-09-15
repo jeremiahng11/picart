@@ -31,7 +31,41 @@ import jklLogo from './assets/jkl_small.png';
 
 const FirmwareRepoURL = "https://github.com/jeremiahng11/picartfirmware";
 
+// Fallback floor, used only when the latest release cannot be looked up.
+// Below this the cartridge is too old for this app to talk to properly.
 const MinimumFirmwareVersion = [0, 5, 2];
+
+const LatestReleaseURL =
+  "https://api.github.com/repos/jeremiahng11/picartfirmware/releases/latest";
+
+// "1.0.2" or "v1.0.2" -> [1, 0, 2]. Returns null for anything else.
+function parseVersionTag(tag) {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(String(tag || ""));
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+// The newest published release, or null if GitHub cannot be reached. Drafts and
+// prereleases are excluded by the /latest endpoint itself. Bounded so a slow or
+// rate-limited API never holds up connecting.
+async function fetchLatestFirmwareVersion() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const res = await fetch(LatestReleaseURL, { signal: controller.signal });
+    if (!res.ok) {
+      console.log("Latest release lookup failed with status " + res.status);
+      return null;
+    }
+    return parseVersionTag((await res.json()).tag_name);
+  }
+  catch (e) {
+    console.log("Could not look up the latest firmware release: " + e);
+    return null;
+  }
+  finally {
+    clearTimeout(timer);
+  }
+}
 
 function compareVersion(a, b) {
   for (var i = 0; i < a.length; i++) {
@@ -93,6 +127,7 @@ class GbCartridge extends React.Component {
     deviceInfo: {},
     serialId: null,
     buildName: null,
+    latestFirmware: null,
     romUtilization: { numRoms: 0, usedBanks: 0, maxBanks: 0 },
     romInfos: [],
     confirmationMessage: null,
@@ -130,9 +165,12 @@ class GbCartridge extends React.Component {
   }
 
   NewFirmwareNotification = () => {
+    const latest = this.state.latestFirmware;
     return (
       <div>
-        New Firmware available.<br />
+        {latest
+          ? "Firmware " + latest.join(".") + " is available."
+          : "New Firmware available."}<br />
         <a target="_blank" rel="noopener noreferrer" href={this.props.ReleasesURL}>Check it out</a>
       </div>
     )
@@ -188,12 +226,19 @@ class GbCartridge extends React.Component {
 
     this.setState({ deviceInfo: deviceInfo });
 
+    // Prompt when the cartridge is behind the newest published release, so the
+    // threshold tracks the firmware repo instead of a constant that has to be
+    // bumped by hand. If GitHub cannot be reached we fall back to the hard
+    // floor, which only flags genuinely ancient firmware.
+    const latest = await fetchLatestFirmwareVersion();
+    this.setState({ latestFirmware: latest });
+
     // Only prompt when the version was actually read. A failed read falls back
-    // to 0.0.0, which would otherwise compare as older than the minimum and
+    // to 0.0.0, which would otherwise compare as older than the threshold and
     // prompt an upgrade on firmware that is already current.
     if (!deviceInfo.unknown && compareVersion(
       [deviceInfo.swVersion.major, deviceInfo.swVersion.minor, deviceInfo.swVersion.patch],
-      MinimumFirmwareVersion) < 0) {
+      latest || MinimumFirmwareVersion) < 0) {
       setTimeout(() => {
         toast.info(this.NewFirmwareNotification, {
           position: "top-right",
@@ -370,6 +415,7 @@ class GbCartridge extends React.Component {
       deviceInfo: {},
       serialId: null,
       buildName: null,
+      latestFirmware: null,
     });
 
     // Said after the state change so it lands on the connect screen, which is
