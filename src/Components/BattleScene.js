@@ -49,11 +49,14 @@ const EFFECT_LIFE = 5;
 // land and brightens into the new one alongside it, rather than snapping across.
 const EXIT_TICKS = 6;
 const ENTER_TICKS = 8;
+export const WAVES_MIN = 2;
+export const WAVES_MAX = 5;
+const WAVE_PAUSE = 16;
+const WANDER_PAUSE = [8, 26];
 
 const FIELD_MIN = 4;
 const FIELD_MAX = 94;
 const PICKUP_RANGE = 5;
-const WAVE_GAP = 12;
 const DROP_CHANCE = 0.55;
 const FLOAT_LIFE = 9;
 const HURT_TICKS = 3;
@@ -101,6 +104,10 @@ function clamp(v, lo, hi) {
 
 // One to three at a time, anywhere on the field and on either side of the hero,
 // but never right on top of him or on each other.
+export function rollWaveCount() {
+  return WAVES_MIN + Math.floor(Math.random() * (WAVES_MAX - WAVES_MIN + 1));
+}
+
 export function spawnWave(heroX = 16) {
   const count = 1 + Math.floor(Math.random() * 3);
   const wave = [];
@@ -285,6 +292,8 @@ export function initialState() {
       cooldown: 0,
       mpTimer: 0,
       travelTimer: 0,
+      wanderTo: null,
+      wanderTimer: 0,
       spell: null,
       dead: false,
       respawn: 0,
@@ -296,6 +305,7 @@ export function initialState() {
     waveGap: 0,
     journey: 0,
     travelling: false,
+    wavesLeft: rollWaveCount() - 1,
   };
 }
 
@@ -361,6 +371,7 @@ export function step(prev) {
   let waveGap = prev.waveGap;
   let journey = prev.journey || 0;
   let travelling = prev.travelling || false;
+  let wavesLeft = prev.wavesLeft === undefined ? 0 : prev.wavesLeft;
 
   let hero = advance(prev.hero);
   let monsters = prev.monsters.map(advance);
@@ -398,6 +409,7 @@ export function step(prev) {
       waveGap: 0,
       journey,
       travelling: false,
+      wavesLeft: rollWaveCount() - 1,
       hero: {
         ...hero,
         x: 16,
@@ -446,13 +458,21 @@ export function step(prev) {
         contents: rollChestContents(),
       });
     }
-    // Nothing left to fight and nothing left to pick up, so travel on.
-    if (drops.length === 0 && waveGap >= WAVE_GAP) {
-      travelling = true;
+    if (drops.length === 0 && waveGap >= WAVE_PAUSE) {
+      if (wavesLeft > 0) {
+        // The scene has more to throw at him, so he stays put.
+        monsters = monsters.concat(spawnWave(hero.x));
+        wavesLeft -= 1;
+        waveGap = 0;
+      } else {
+        travelling = true;
+      }
     }
   } else {
     waveGap = 0;
     travelling = false;
+    hero.wanderTo = null;
+    hero.wanderTimer = 0;
   }
 
   // Travel runs in three beats: walk to the edge, fade out of this land, fade in
@@ -467,6 +487,7 @@ export function step(prev) {
         hero.state = "enter";
         hero.travelTimer = ENTER_TICKS;
         monsters = spawnWave(hero.x);
+        wavesLeft = rollWaveCount() - 1;
         const arrival = sceneAt(journey);
         floats = addFloat(
           floats,
@@ -496,7 +517,7 @@ export function step(prev) {
       }
     }
 
-    return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling };
+    return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft };
   }
 
   // Hero: fetch loot when the field allows it, otherwise close on the nearest
@@ -619,8 +640,18 @@ export function step(prev) {
         hero.state = "walk";
         hero.x = clamp(hero.x + Math.sign(gap) * hero.speed, FIELD_MIN, FIELD_MAX);
       }
-    } else {
+    } else if (hero.wanderTimer > 0) {
+      hero.wanderTimer -= 1;
       hero.state = "idle";
+    } else if (hero.wanderTo === null || Math.abs(hero.wanderTo - hero.x) < 2.5) {
+      hero.wanderTo = FIELD_MIN + Math.random() * (FIELD_MAX - FIELD_MIN);
+      hero.wanderTimer = WANDER_PAUSE[0] + Math.floor(Math.random() * (WANDER_PAUSE[1] - WANDER_PAUSE[0]));
+      hero.state = "idle";
+    } else {
+      const stroll = hero.wanderTo - hero.x;
+      hero.face = stroll >= 0 ? 1 : -1;
+      hero.state = "walk";
+      hero.x = clamp(hero.x + Math.sign(stroll) * hero.speed * 0.55, FIELD_MIN, FIELD_MAX);
     }
   }
 
@@ -701,7 +732,7 @@ export function step(prev) {
     drops = kept;
   }
 
-  return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling };
+  return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft };
 }
 
 function prefersReducedMotion() {
@@ -717,62 +748,86 @@ function HeroSprite({ weapon, shielded }) {
   // than only in the numbers.
   const blade =
     weapon >= 5
-      ? { x: 13, w: 3, top: 0, edge: "#ffd76b", body: "#e8dcae" }
+      ? { x: 18, w: 4, top: 0, body: "#e8dcae", edge: "#ffd76b", guard: "#ffd76b" }
       : weapon >= 3
-        ? { x: 14, w: 2, top: 1, edge: "#bfe9ff", body: "#8fd7ff" }
-        : { x: 14, w: 2, top: 1, edge: "#eef2ff", body: "#b9c2de" };
+        ? { x: 19, w: 3, top: 1, body: "#8fd7ff", edge: "#dff3ff", guard: "#bfe9ff" }
+        : { x: 19, w: 3, top: 2, body: "#b9c2de", edge: "#eef2ff", guard: "#c9962b" };
 
   return (
-    <svg viewBox="0 0 18 20" shapeRendering="crispEdges">
+    <svg viewBox="0 0 24 28" shapeRendering="crispEdges">
+      {/* Cape hangs behind and sways on its own. */}
+      <g className="bs-hero-cape">
+        <path fill="#8a2540" d="M6 11h5v13H6z" />
+        <path fill="#b8324f" d="M7 11h4v12H7z" />
+        <path fill="#d14a67" d="M8 12h2v9H8z" />
+      </g>
+
+      <g className="bs-hero-legs">
+        <rect x="10" y="20" width="3" height="5" fill="#2c1f4e" />
+        <rect x="14" y="20" width="3" height="5" fill="#3a2a60" />
+        <rect x="9" y="25" width="5" height="2" fill="#6b4a2a" />
+        <rect x="14" y="25" width="5" height="2" fill="#7d5a34" />
+        <rect x="9" y="27" width="5" height="1" fill="#4a3420" />
+        <rect x="14" y="27" width="5" height="1" fill="#4a3420" />
+      </g>
+
       <g className="bs-hero-body">
-        <path fill="#9e2b45" d="M4 7h3v9H4z" />
-        <path fill="#b8324f" d="M5 7h2v8H5z" />
+        {/* Plume */}
+        <rect x="12" y="0" width="3" height="1" fill="#ffb3c8" />
+        <rect x="12" y="1" width="3" height="2" fill="#ff6b8a" />
+        <rect x="11" y="2" width="1" height="2" fill="#d1425f" />
 
-        <rect x="8" y="0" width="2" height="1" fill="#ff8fa8" />
-        <rect x="8" y="1" width="2" height="1" fill="#ff6b8a" />
-        <rect x="7" y="1" width="1" height="1" fill="#d1425f" />
-        <rect x="6" y="2" width="6" height="4" fill="#cfd6e6" />
-        <rect x="6" y="2" width="6" height="1" fill="#eef2ff" />
-        <rect x="6" y="5" width="6" height="1" fill="#9aa3bb" />
-        <rect x="7" y="4" width="4" height="1" fill="#2b2340" />
+        {/* Helm */}
+        <rect x="9" y="3" width="8" height="1" fill="#eef2ff" />
+        <rect x="8" y="4" width="10" height="5" fill="#cfd6e6" />
+        <rect x="8" y="4" width="10" height="1" fill="#f6f9ff" />
+        <rect x="8" y="8" width="10" height="1" fill="#9aa3bb" />
+        <rect x="10" y="6" width="6" height="2" fill="#2b2340" />
+        <rect x="11" y="6" width="1" height="1" fill="#8fd7ff" />
+        <rect x="14" y="6" width="1" height="1" fill="#8fd7ff" />
+        <rect x="12" y="8" width="2" height="1" fill="#9aa3bb" />
 
-        <rect x="4" y="6" width="3" height="2" fill="#cfd6e6" />
-        <rect x="11" y="6" width="3" height="2" fill="#cfd6e6" />
-        <rect x="4" y="6" width="3" height="1" fill="#eef2ff" />
-        <rect x="11" y="6" width="3" height="1" fill="#eef2ff" />
-        <rect x="6" y="6" width="6" height="6" fill="#4a7fe0" />
-        <rect x="6" y="6" width="6" height="1" fill="#79a4f5" />
-        <rect x="8" y="8" width="2" height="2" fill="#ffd76b" />
-        <rect x="6" y="12" width="6" height="1" fill="#6b4a2a" />
-        <rect x="8" y="12" width="2" height="1" fill="#c9962b" />
+        {/* Gorget and pauldrons */}
+        <rect x="10" y="9" width="6" height="1" fill="#9aa3bb" />
+        <rect x="6" y="10" width="4" height="3" fill="#cfd6e6" />
+        <rect x="16" y="10" width="4" height="3" fill="#cfd6e6" />
+        <rect x="6" y="10" width="4" height="1" fill="#f6f9ff" />
+        <rect x="16" y="10" width="4" height="1" fill="#f6f9ff" />
+
+        {/* Cuirass */}
+        <rect x="9" y="10" width="8" height="9" fill="#4a7fe0" />
+        <rect x="9" y="10" width="8" height="1" fill="#84adf7" />
+        <rect x="9" y="14" width="8" height="1" fill="#3a63b4" />
+        <rect x="11" y="12" width="4" height="3" fill="#ffd76b" />
+        <rect x="12" y="13" width="2" height="1" fill="#c9962b" />
+        <rect x="9" y="19" width="8" height="2" fill="#6b4a2a" />
+        <rect x="12" y="19" width="2" height="2" fill="#c9962b" />
 
         {shielded ? (
           <g>
-            <rect x="1" y="7" width="5" height="7" fill="#cfd6e6" />
-            <rect x="1" y="7" width="5" height="1" fill="#eef2ff" />
-            <rect x="2" y="9" width="3" height="3" fill="#4a7fe0" />
-            <rect x="3" y="10" width="1" height="1" fill="#ffd76b" />
+            <rect x="2" y="11" width="6" height="9" fill="#cfd6e6" />
+            <rect x="2" y="11" width="6" height="1" fill="#f6f9ff" />
+            <rect x="3" y="13" width="4" height="5" fill="#4a7fe0" />
+            <rect x="4" y="14" width="2" height="3" fill="#ffd76b" />
+            <rect x="2" y="20" width="6" height="1" fill="#9aa3bb" />
           </g>
         ) : (
           <g>
-            <rect x="2" y="8" width="4" height="5" fill="#c9962b" />
-            <rect x="2" y="8" width="4" height="1" fill="#ffd76b" />
-            <rect x="3" y="10" width="2" height="2" fill="#8a5f1c" />
+            <rect x="3" y="12" width="5" height="7" fill="#c9962b" />
+            <rect x="3" y="12" width="5" height="1" fill="#ffd76b" />
+            <rect x="4" y="14" width="3" height="3" fill="#8a5f1c" />
           </g>
         )}
-
-        <rect x="6" y="13" width="2" height="4" fill="#2c1f4e" />
-        <rect x="10" y="13" width="2" height="4" fill="#2c1f4e" />
-        <rect x="5" y="17" width="4" height="2" fill="#6b4a2a" />
-        <rect x="9" y="17" width="4" height="2" fill="#6b4a2a" />
       </g>
 
+      {/* Sword arm, on its own group so it can sweep. */}
       <g className="bs-hero-arm">
-        <rect x="12" y="7" width="2" height="3" fill="#cfd6e6" />
-        <rect x="13" y="8" width="4" height="1" fill="#c9962b" />
-        <rect x={blade.x} y={blade.top} width={blade.w} height={8 - blade.top} fill={blade.body} />
-        <rect x={blade.x} y={blade.top} width="1" height={8 - blade.top} fill={blade.edge} />
-        <rect x={blade.x} y={Math.max(0, blade.top - 1)} width={blade.w} height="1" fill="#ffffff" />
+        <rect x="17" y="12" width="3" height="4" fill="#cfd6e6" />
+        <rect x="17" y="12" width="3" height="1" fill="#f6f9ff" />
+        <rect x={blade.x - 2} y="11" width="7" height="1" fill={blade.guard} />
+        <rect x={blade.x} y={blade.top} width={blade.w} height={11 - blade.top} fill={blade.body} />
+        <rect x={blade.x} y={blade.top} width="1" height={11 - blade.top} fill={blade.edge} />
+        <rect x={blade.x} y={blade.top} width={blade.w} height="1" fill="#ffffff" />
       </g>
     </svg>
   );

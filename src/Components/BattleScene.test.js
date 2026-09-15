@@ -1,7 +1,7 @@
 import {
-  step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp,
+  step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount,
   MONSTERS, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS,
-  HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS,
+  HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX,
 } from './BattleScene';
 
 // The skirmish rolls dice, so tests pin Math.random to make a frame
@@ -545,13 +545,66 @@ test('casting leaves a visible effect at the target', () => {
   expect(POWERS.some((p) => p.key === after.effects[0].key)).toBe(true);
 });
 
-test('a cleared and looted field sends the hero travelling', () => {
-  let s = { ...heroAt(50, { cooldown: 999 }), monsters: [], drops: [], waveGap: 0 };
-  for (let i = 0; i < 20 && !s.travelling; i++) {
+test('a scene whose waves are spent sends the hero travelling', () => {
+  let s = { ...heroAt(50, { cooldown: 999 }), monsters: [], drops: [], waveGap: 0, wavesLeft: 0 };
+  for (let i = 0; i < 30 && !s.travelling; i++) {
     s = withRandom(0.9, () => step(s));
     s.drops = [];
   }
   expect(s.travelling).toBe(true);
+});
+
+test('a scene still owing waves keeps him there', () => {
+  let s = { ...heroAt(50, { cooldown: 999 }), monsters: [], drops: [], waveGap: 0, wavesLeft: 3 };
+
+  for (let i = 0; i < 30; i++) {
+    s = withRandom(0.9, () => step(s));
+    s.drops = [];
+    s.monsters = [];
+  }
+
+  expect(s.travelling).toBe(false);
+  expect(s.wavesLeft).toBeLessThan(3);
+});
+
+test('each scene is worth between two and five waves', () => {
+  for (let i = 0; i < 200; i++) {
+    const n = rollWaveCount();
+    expect(n).toBeGreaterThanOrEqual(WAVES_MIN);
+    expect(n).toBeLessThanOrEqual(WAVES_MAX);
+  }
+
+  const seen = new Set();
+  for (let i = 0; i < 400; i++) {
+    seen.add(rollWaveCount());
+  }
+  expect(seen.size).toBeGreaterThan(1);
+});
+
+test('arriving somewhere new stocks it with a fresh set of waves', () => {
+  let s = { ...heroAt(90, { cooldown: 999 }), monsters: [], drops: [], travelling: true, journey: 2, wavesLeft: 0 };
+
+  for (let i = 0; i < 20 && s.journey === 2; i++) {
+    s = withRandom(0.5, () => step(s));
+  }
+
+  expect(s.journey).toBe(3);
+  expect(s.wavesLeft).toBeGreaterThanOrEqual(WAVES_MIN - 1);
+});
+
+test('with nothing to do he wanders the scene rather than standing still', () => {
+  let s = { ...heroAt(50, { cooldown: 999 }), monsters: [], drops: [], wavesLeft: 9, waveGap: 0 };
+  const visited = new Set();
+
+  for (let i = 0; i < 90; i++) {
+    s = withRandom(0.9, () => step(s));
+    s.monsters = [];
+    s.drops = [];
+    visited.add(Math.round(s.hero.x));
+  }
+
+  // He does not simply stand where he was left.
+  expect(visited.size).toBeGreaterThan(3);
 });
 
 test('loot still on the ground keeps him from moving on', () => {
