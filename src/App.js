@@ -21,6 +21,7 @@ import AddNewRomModal from "./Components/AddNewRomModal";
 import ConfirmationModal from './Components/ConfirmationModal';
 import SavegameModal from './Components/SavegameModal';
 import BattleScene from './Components/BattleScene';
+import Scenery from './Components/Scenery';
 import { Trash3Fill, Save2Fill } from "react-bootstrap-icons";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -310,7 +311,7 @@ class GbCartridge extends React.Component {
 
   // Every screen renders inside the cartridge label recess. Below the breakpoint
   // in App.css the shell is dropped and this collapses to a plain container.
-  inCartridge(content) {
+  inCartridge(content, below) {
     return (
       <div className="stage">
         <div className="cart">
@@ -318,6 +319,7 @@ class GbCartridge extends React.Component {
             {/* Sits outside the scrolling content so the sprites stay put
                 while the rom list moves. */}
             <div className="scene" aria-hidden="true">
+              <Scenery />
               <span className="sprite sprite--shoot" />
               <span className="sprite sprite--fly sprite--fly1" />
               <span className="sprite sprite--fly sprite--fly2" />
@@ -328,6 +330,7 @@ class GbCartridge extends React.Component {
             </div>
           </div>
         </div>
+        {below && <div className="cart__below">{below}</div>}
       </div>
     );
   }
@@ -382,14 +385,14 @@ class GbCartridge extends React.Component {
               Connect
             </button>
             <p className="hero__version">Version {process.env.REACT_APP_VERSION}</p>
-            {!isElectron() && (
-              <p className="hero__offline">
-                Find the offline version{" "}
-                <a target="_blank" rel="noopener noreferrer" href={this.props.WebappReleasesURL}>here</a>.
-              </p>
-            )}
           </main>
-        </div>
+        </div>,
+        !isElectron() && (
+          <p className="cart__offline">
+            Find the offline version{" "}
+            <a target="_blank" rel="noopener noreferrer" href={this.props.WebappReleasesURL}>here</a>.
+          </p>
+        )
       );
     }
 
