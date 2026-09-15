@@ -293,6 +293,20 @@ class GbCartridge extends React.Component {
     this.setState({ showConfirmationModal: false });
   }
 
+  // Every screen renders inside the cartridge label recess. Below the breakpoint
+  // in App.css the shell is dropped and this collapses to a plain container.
+  inCartridge(content) {
+    return (
+      <div className="stage">
+        <div className="cart">
+          <div className="cart__label">
+            {content}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   romMeta(romInfo) {
     const parts = [];
 
@@ -311,7 +325,7 @@ class GbCartridge extends React.Component {
 
   render() {
     if (!navigator.usb) {
-      return (
+      return this.inCartridge(
         <div className="app app--hero">
           <main className="hero">
             <img src={jklLogo} alt="JKL logo" className="hero__logo" />
@@ -330,7 +344,7 @@ class GbCartridge extends React.Component {
     }
 
     if (this.state.state === this.StateConnect) {
-      return (
+      return this.inCartridge(
         <div className="app app--hero">
           {/* Also the landing spot after a failed read, so errors raised while
               connecting have somewhere to render. */}
@@ -355,7 +369,7 @@ class GbCartridge extends React.Component {
     }
 
     if (this.state.state === this.StateConnecting || this.state.state === this.StateRetrievingInfo) {
-      return (
+      return this.inCartridge(
         <div className="app app--hero">
           <ToastContainer />
           <main className="hero">
@@ -376,7 +390,7 @@ class GbCartridge extends React.Component {
       const sw = this.state.deviceInfo.swVersion;
       const gitShort = sw.gitShort.toString(16);
 
-      return (
+      return this.inCartridge(
         <div className="app">
           <ToastContainer />
 
@@ -479,7 +493,7 @@ class GbCartridge extends React.Component {
       );
     }
 
-    return <div className="app">Invalid state {this.state.state}</div>;
+    return this.inCartridge(<div className="app">Invalid state {this.state.state}</div>);
   }
 }
 
