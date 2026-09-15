@@ -107,11 +107,13 @@ class Communication {
 
     executeCommand(command, payload, readBytes = 0) {
         return new Promise((resolve, reject) => {
-            var buffer = new ArrayBuffer(1, { maxByteLength: 64 });
-            var requestData = new Uint8Array(buffer);
+            // Sized up front. Using a resizable ArrayBuffer here required
+            // Chrome 111, raising this app's floor far above WebUSB's own, and
+            // it is no simpler than allocating the right size to begin with.
+            var hasPayload = payload instanceof Uint8Array;
+            var requestData = new Uint8Array(hasPayload ? payload.byteLength + 1 : 1);
             requestData[0] = command;
-            if (payload instanceof Uint8Array) {
-                buffer.resize(payload.byteLength + 1);
+            if (hasPayload) {
                 requestData.set(payload, 1);
             }
             // Awaited before reading, so a failed transfer rejects this command

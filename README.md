@@ -42,6 +42,11 @@ Both URLs are `localhost`, so WebUSB works without TLS.
 npm run react-test -- --watchAll=false
 ```
 
+`communication.test.js` drives the device layer against a fake WebUSB device, so
+the wire format, the short-response guards and the error paths are covered
+without hardware. What still needs a real cartridge is anything past the
+protocol: transfer timing, firmware quirks, and the RTC round trip.
+
 `stringview` ships ESM only, which Jest does not transform inside `node_modules`
 by default. The `jest.transformIgnorePatterns` override in `package.json` exempts
 it; without that, any suite importing the device layer fails at import.
