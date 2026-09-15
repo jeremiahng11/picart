@@ -34,6 +34,7 @@ function renderConnected(overrides = {}) {
         swVersion: { major: 0, minor: 5, patch: 2, buildType: 'R', gitShort: 0xa1b2c3, gitDirty: true },
       },
       serialId: 'ABC123',
+      buildName: 'Pico',
       romUtilization: { numRoms: 2, usedBanks: 192, maxBanks: 512 },
       romInfos: [
         { romId: 0, name: 'POKEMON RED', numRamBanks: 4, mbc: 3, numRomBanks: 64 },
@@ -280,4 +281,23 @@ test('the target comes back once the cartridge is handed over', async () => {
   });
 
   expect(container.querySelector('.bs-hit')).not.toBeNull();
+});
+
+
+test('the build name sits with the firmware version, not after the commit', () => {
+  const { container } = renderConnected();
+
+  const footer = container.querySelector('.footer');
+  const text = footer.textContent;
+
+  // Firmware, build type, then the build name, and only then the commit.
+  expect(text).toMatch(/Firmware 0\.5\.2 R\s*Pico/);
+  expect(text.indexOf('Pico')).toBeLessThan(text.indexOf('a1b2c3'));
+});
+
+test('a cartridge that reports no build name shows none', () => {
+  const { container } = renderConnected({ buildName: null });
+
+  expect(container.querySelector('.footer__buildname')).toBeNull();
+  expect(container.querySelector('.footer').textContent).toMatch(/Firmware 0\.5\.2 R/);
 });

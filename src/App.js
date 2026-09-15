@@ -585,7 +585,17 @@ class GbCartridge extends React.Component {
           </main>
 
           <footer className="footer">
-            <span>Firmware {sw.major}.{sw.minor}.{sw.patch} {sw.buildType}</span>
+            <span>
+              Firmware {sw.major}.{sw.minor}.{sw.patch} {sw.buildType}
+              {/* The build name belongs with the version it describes, rather
+                  than adrift after the commit hash. */}
+              {this.state.buildName && (
+                <>
+                  {" "}
+                  <span className="footer__buildname">{this.state.buildName}</span>
+                </>
+              )}
+            </span>
             <span className="footer__sep">&middot;</span>
             <a
               target="_blank"
@@ -594,9 +604,6 @@ class GbCartridge extends React.Component {
             >
               {gitShort}
             </a>
-            {this.state.buildName && (
-              <span className="footer__buildname">{this.state.buildName}</span>
-            )}
             {sw.gitDirty && <span className="footer__dirty">dirty</span>}
             {this.state.serialId && (
               <>
