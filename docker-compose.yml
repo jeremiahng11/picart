@@ -1,6 +1,9 @@
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        APP_VERSION: local
     image: jkl-cartridge-webapp:local
     ports:
       # WebUSB treats http://localhost as a secure context, so this works

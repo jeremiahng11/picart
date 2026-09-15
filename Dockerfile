@@ -15,6 +15,13 @@ ENV CI=false
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
+# Build identity shown on the connect screen. Declared after npm ci so changing
+# it does not invalidate the dependency layer. A real environment variable takes
+# precedence over the $npm_package_version in .env, which is otherwise always
+# 0.0.0 outside of a tagged release build.
+ARG APP_VERSION=dev
+ENV REACT_APP_VERSION=$APP_VERSION
+
 COPY . .
 
 # `npm run build` also invokes electron-builder, which cannot run in this image.

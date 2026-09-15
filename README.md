@@ -72,7 +72,8 @@ assets are root-relative and no rebuild is needed when the domain changes.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `REACT_APP_VERSION` | `$npm_package_version` (set in `.env`) | Version string shown on the connect screen. Resolved by npm at build time. |
+| `APP_VERSION` | `dev` (Docker build arg) | Build identity shown on the connect screen. Pass the deployed commit so it is possible to tell which build is live. |
+| `REACT_APP_VERSION` | `$npm_package_version` from `.env`, overridden by `APP_VERSION` in Docker | What the UI actually renders. Outside a tagged release it resolves to `0.0.0`, which is why the Docker build overrides it. |
 | `CI` | `false` (set in `Dockerfile`) | `react-scripts` treats lint warnings as build errors when this is truthy. |
 
 No secrets are required. `.env` contains only the version reference and is
