@@ -125,9 +125,15 @@ export const MONSTERS = [
   { kind: "skeleton", sheet: skeletonSheet, sheetFrames: 8, color: "#e8e4d9", maxHp: 14, dmg: [2, 5], speed: 0.95, reach: 8, cd: 7, move: "walk" },
   { kind: "ghoul", sheet: ghoulSheet, sheetFrames: 8, color: "#a78bd6", maxHp: 16, dmg: [3, 6], speed: 1.2, reach: 7, cd: 8, move: "walk" },
   { kind: "mummy", sheet: mummySheet, sheetFrames: 8, color: "#d9c9a0", maxHp: 18, dmg: [3, 5], speed: 0.7, reach: 7, cd: 9, move: "walk" },
-  { kind: "mimic", sheet: mimicSheet, sheetFrames: 4, color: "#c9962b", maxHp: 22, dmg: [4, 8], speed: 0.9, reach: 6, cd: 7, move: "hop" },
+  // Never wanders in: a mimic is only ever what a trapped chest turns out to
+  // be, which is why it is kept out of the wave pool.
+  { kind: "mimic", sheet: mimicSheet, sheetFrames: 4, color: "#c9962b", maxHp: 22, dmg: [4, 8], speed: 0.9, reach: 6, cd: 7, move: "hop", ambush: true },
   { kind: "warlock", sheet: warlockSheet, sheetFrames: 8, color: "#8fd7ff", maxHp: 13, dmg: [1, 6], speed: 1.0, reach: 9, cd: 6, move: "float" },
 ];
+
+// What a wave may be made of. The ambushers are excluded, since they arrive by
+// their own means rather than walking on.
+export const WAVE_MONSTERS = MONSTERS.filter((m) => !m.ambush);
 
 // Shed by monsters. Chests never contain these.
 // Rare, slow, and far sturdier than anything else on the field. A boss arrives
@@ -218,7 +224,7 @@ export function spawnWave(heroX = 16, level = 1, allowBoss = true) {
   const wave = [];
 
   for (let i = 0; i < count; i++) {
-    const def = pick(MONSTERS);
+    const def = pick(WAVE_MONSTERS);
 
     // Positions are chosen from the set that already satisfies the spacing,
     // rather than by guessing and hoping. Rejection sampling with a retry cap

@@ -1,6 +1,6 @@
 import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
-  MONSTERS, BOSSES, EFFECT_ART, bossChance, bossAllowed, BOSS_COOLDOWN_SCENES,
+  MONSTERS, WAVE_MONSTERS, BOSSES, EFFECT_ART, bossChance, bossAllowed, BOSS_COOLDOWN_SCENES,
   GOD_SET, GOD_TOME, godTreasure, hasFullGodSet, describeItem,
   GOD_SPELL_COST, LEVEL_HP, LEVEL_MP, CARRY_LIMIT, groupInventory,
   STORM_TICKS, STORM_MAX_HITS, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
@@ -1466,4 +1466,37 @@ test('the storm can clear a whole crowd', () => {
   }
 
   expect(s.monsters.every((m) => m.dead)).toBe(true);
+});
+
+test('a mimic never simply walks onto the field', () => {
+  for (let i = 0; i < 800; i++) {
+    for (const m of spawnWave(50, 90, false)) {
+      expect(m.kind).not.toBe('mimic');
+    }
+  }
+});
+
+test('the wave pool is every monster except the ambushers', () => {
+  const ambushers = MONSTERS.filter((m) => m.ambush);
+
+  expect(ambushers.length).toBeGreaterThan(0);
+  expect(WAVE_MONSTERS.length).toBe(MONSTERS.length - ambushers.length);
+  expect(WAVE_MONSTERS.some((m) => m.ambush)).toBe(false);
+  // Still a real monster, just not one that arrives under its own steam.
+  expect(MONSTERS.some((m) => m.kind === 'mimic')).toBe(true);
+});
+
+test('the only way to meet a mimic is to open the wrong chest', () => {
+  const state = {
+    ...heroAt(40, { cooldown: 999 }),
+    monsters: [],
+    wavesLeft: 0,
+    drops: [{
+      kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 61, x: 40, born: 0,
+      mimic: true, contents: [COMMON_ITEMS[0]],
+    }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.monsters.map((m) => m.kind)).toEqual(['mimic']);
 });
