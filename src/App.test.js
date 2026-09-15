@@ -46,6 +46,17 @@ function renderConnected(overrides = {}) {
   return { ...view, ref };
 }
 
+// The connect screen is where the game is on show and the hero can be reached.
+function renderPlaying() {
+  Object.defineProperty(window.navigator, 'usb', {
+    value: { addEventListener() { }, removeEventListener() { } },
+    configurable: true,
+  });
+
+  const ref = React.createRef();
+  return { ...render(<App ref={ref} />), ref };
+}
+
 test('lists each rom with its metadata', () => {
   renderConnected();
 
@@ -85,7 +96,7 @@ test('tells the user when the cartridge holds no roms', () => {
 });
 
 test('clicking the hero opens his status sheet, and the X closes it', () => {
-  const { container } = renderConnected();
+  const { container } = renderPlaying();
 
   expect(container.querySelector('.bs-sheet')).toBeNull();
 
@@ -100,7 +111,7 @@ test('clicking the hero opens his status sheet, and the X closes it', () => {
 });
 
 test('clicking the backdrop also closes the sheet', () => {
-  const { container } = renderConnected();
+  const { container } = renderPlaying();
 
   fireEvent.click(container.querySelector('.bs-hit'));
   expect(container.querySelector('.bs-sheet')).not.toBeNull();
@@ -110,7 +121,7 @@ test('clicking the backdrop also closes the sheet', () => {
 });
 
 test('the status sheet has an inventory tab that does not close the sheet', () => {
-  const { container } = renderConnected();
+  const { container } = renderPlaying();
   fireEvent.click(container.querySelector('.bs-hit'));
 
   // Decorative and aria-hidden, so the tabs are found by class rather than role.
@@ -125,7 +136,7 @@ test('the status sheet has an inventory tab that does not close the sheet', () =
 });
 
 test('equipment slots are listed with their fallbacks when nothing is found yet', () => {
-  const { container } = renderConnected();
+  const { container } = renderPlaying();
   fireEvent.click(container.querySelector('.bs-hit'));
 
   // He sets out in clothes with a worn sword: every slot but the weapon is empty.
@@ -241,4 +252,32 @@ test('the fireflies drift behind the fighters, not over them', () => {
   expect(order[order.length - 1]).toBe('field');
   expect(order.filter((o) => o === 'ambience').length).toBeGreaterThan(0);
   expect(order.indexOf('ambience')).toBeLessThan(order.indexOf('field'));
+});
+
+test('the game takes no clicks while the manager covers it', () => {
+  const { container } = renderConnected();
+
+  // The hero's target would otherwise sit above the panel and swallow clicks
+  // meant for the footer beneath it.
+  expect(container.querySelector('.bs-hit')).toBeNull();
+});
+
+test('clicking the serial does not open the character sheet', () => {
+  const { container } = renderConnected();
+
+  fireEvent.click(screen.getByText(/Serial ABC123/));
+
+  expect(container.querySelector('.bs-sheet')).toBeNull();
+  expect(screen.getByText('POKEMON RED')).toBeInTheDocument();
+});
+
+test('the target comes back once the cartridge is handed over', async () => {
+  const { container } = renderConnected();
+  expect(container.querySelector('.bs-hit')).toBeNull();
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /disconnect the cartridge/i }));
+  });
+
+  expect(container.querySelector('.bs-hit')).not.toBeNull();
 });

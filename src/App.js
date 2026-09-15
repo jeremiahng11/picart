@@ -364,7 +364,7 @@ class GbCartridge extends React.Component {
             {/* Sits outside the scrolling content so the sprites stay put
                 while the rom list moves. */}
             <div className="scene" aria-hidden="true">
-              <BattleScene />
+              <BattleScene covered={this.state.state === this.StateConnected} />
             </div>
             <div className={"cart__content" + (solid ? " is-solid" : "")}>
               {content}

@@ -1873,7 +1873,7 @@ function StatusSheet({ hero, onClose }) {
   );
 }
 
-export default function BattleScene() {
+export default function BattleScene({ covered }) {
   const [state, setState] = React.useState(initialState);
   const still = React.useMemo(prefersReducedMotion, []);
 
@@ -1886,6 +1886,14 @@ export default function BattleScene() {
   }, [still]);
 
   const [showSheet, setShowSheet] = React.useState(false);
+
+  // While the rom manager is over the top, the game is out of reach: its click
+  // target must not go on swallowing clicks meant for the panel covering it.
+  React.useEffect(() => {
+    if (covered) {
+      setShowSheet(false);
+    }
+  }, [covered]);
   const { hero, monsters, drops, floats, effects } = state;
 
   return (
@@ -1963,15 +1971,18 @@ export default function BattleScene() {
       ))}
 
         {/* The content layer covers the whole label, so a click on the hero
-            never reaches him. This invisible target rides above it. */}
-        <span
-          className={"bs-hit" + (hero.warp === state.tick ? " is-warp" : "")}
-          style={{ left: hero.x + "%" }}
-          onClick={() => setShowSheet(true)}
-        />
+            never reaches him. This invisible target rides above it, and is
+            withdrawn entirely when the manager is covering the game. */}
+        {!covered && (
+          <span
+            className={"bs-hit" + (hero.warp === state.tick ? " is-warp" : "")}
+            style={{ left: hero.x + "%" }}
+            onClick={() => setShowSheet(true)}
+          />
+        )}
       </div>
 
-      {showSheet && <StatusSheet hero={hero} onClose={() => setShowSheet(false)} />}
+      {showSheet && !covered && <StatusSheet hero={hero} onClose={() => setShowSheet(false)} />}
     </div>
   );
 }
