@@ -1034,8 +1034,8 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 3%;
-  height: 52px;
+  bottom: 2%;
+  height: 96px;
 }
 
 .bs-unit {
@@ -1076,9 +1076,9 @@ body {
   to { background-position-x: calc(var(--size) * -4); }
 }
 
-.bs-unit { --size: 34px; }
-.bs-unit--hero { --size: 46px; }
-.bs-unit--boss { --size: 72px; }
+.bs-unit { --size: 68px; }
+.bs-unit--hero { --size: 92px; }
+.bs-unit--boss { --size: 144px; }
 
 /* The gear is drawn in the same sixteen unit grid as the plate, laid exactly
    over it, so an overlay rectangle covers whole pixels. */
@@ -1102,7 +1102,7 @@ body {
 }
 
 /* A boss towers over the rank and file. */
-.bs-unit--boss .bs-bar { width: 44px; height: 5px; }
+.bs-unit--boss .bs-bar { width: 60px; height: 6px; }
 .bs-unit--boss { filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.5)); }
 
 /* An elemental blade burns, freezes or crackles in the hand. */
@@ -1310,8 +1310,7 @@ body {
   animation: bs-dropin 0.4s ease-out, bs-bob 1.3s ease-in-out infinite 0.4s;
 }
 
-.bs-drop svg { display: block; height: 14px; width: auto; }
-.bs-drop--chest svg { height: 18px; }
+.bs-drop svg { display: block; height: 22px; width: auto; }
 .bs-drop--chest { animation: bs-dropin 0.4s ease-out, bs-shine 1.8s ease-in-out infinite 0.4s; }
 
 @keyframes bs-shine {
@@ -1331,7 +1330,7 @@ body {
 
 .bs-float {
   position: absolute;
-  bottom: 34px;
+  bottom: 60px;
   transform: translateX(-50%);
   font-family: var(--pixel);
   font-size: 0.4375rem;
@@ -1355,68 +1354,39 @@ body {
   .bs-float { animation: none; }
 }
 
-/* ---- spell effects ---- */
+/* ---- spell effects ----
+ * Each is a plate played once through and left on its last frame, which is
+ * cleared when the effect expires.
+ */
 
 .bs-fx {
   position: absolute;
-  bottom: 10px;
+  bottom: 18px;
   transform: translateX(-50%);
   pointer-events: none;
 }
 
-.bs-fx--spark, .bs-fx--frost {
-  width: 14px;
-  height: 30px;
-  animation: bs-fx-bolt 0.45s steps(3, end) forwards;
+.bs-plate--fx {
+  --size: 64px;
+  animation: bs-plate-fx 0.42s steps(var(--fxframes)) 1 forwards;
+  background-size: calc(var(--frames) * var(--size)) var(--size);
 }
 
-.bs-fx--spark { background: linear-gradient(180deg, transparent, #8fd7ff 40%, #ffffff); }
-.bs-fx--frost { background: linear-gradient(180deg, transparent, #bfe9ff 40%, #ffffff); }
-
-.bs-fx--flame {
-  width: 20px;
-  height: 26px;
-  border-radius: 50% 50% 40% 40%;
-  background: radial-gradient(circle at 50% 80%, #fff3b0 0 20%, #ffb36b 45%, transparent 72%);
-  animation: bs-fx-flare 0.55s ease-out forwards;
+/* effect0 and effect1 are sixteen wide by thirty two tall, so their frames are
+   twice the height of everything else. */
+.bs-plate--tall {
+  height: calc(var(--size) * 2);
+  background-size: calc(var(--frames) * var(--size)) calc(var(--size) * 2);
 }
 
-.bs-fx--quake {
-  width: 40px;
-  height: 10px;
-  background: repeating-linear-gradient(90deg, #d9a066 0 3px, transparent 3px 6px);
-  animation: bs-fx-quake 0.6s steps(4, end) forwards;
+@keyframes bs-plate-fx {
+  from { background-position-x: 0; }
+  to { background-position-x: calc(var(--size) * -1 * var(--fxframes)); }
 }
 
-.bs-fx--nova, .bs-fx--judge {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  animation: bs-fx-ring 0.6s ease-out forwards;
-}
+.bs-plate--drop { --size: 38px; }
 
-.bs-fx--nova { border: 3px solid #ff6bd6; }
-.bs-fx--judge { border: 3px solid #fff0a8; }
-
-@keyframes bs-fx-bolt {
-  from { opacity: 1; transform: translateX(-50%) scaleY(0.3); }
-  to { opacity: 0; transform: translateX(-50%) scaleY(1); }
-}
-
-@keyframes bs-fx-flare {
-  from { opacity: 1; transform: translateX(-50%) scale(0.4); }
-  to { opacity: 0; transform: translateX(-50%) scale(1.4) translateY(-8px); }
-}
-
-@keyframes bs-fx-quake {
-  from { opacity: 1; transform: translateX(-50%) scaleX(0.3); }
-  to { opacity: 0; transform: translateX(-50%) scaleX(1.6); }
-}
-
-@keyframes bs-fx-ring {
-  from { opacity: 1; transform: translateX(-50%) scale(0.3); }
-  to { opacity: 0; transform: translateX(-50%) scale(4.5); }
-}
+.bs-plate--still { animation: none; background-position-x: 0; }
 
 /* ---- status sheet ---- */
 
@@ -1426,8 +1396,8 @@ body {
 .bs-hit {
   position: absolute;
   bottom: 0;
-  width: 40px;
-  height: 56px;
+  width: 72px;
+  height: 96px;
   transform: translateX(-50%);
   z-index: 10;
   pointer-events: auto;

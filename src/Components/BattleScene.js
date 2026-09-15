@@ -37,6 +37,13 @@ import warlockSheet from "../assets/sprites/warlock.png";
 import lichSheet from "../assets/sprites/lich.png";
 import deathSheet from "../assets/sprites/death.png";
 import redknightSheet from "../assets/sprites/redknight.png";
+import mimicSheet from "../assets/sprites/mimic.png";
+import goldSheet from "../assets/sprites/gold.png";
+import burstSheet from "../assets/sprites/burst.png";
+import fireburstSheet from "../assets/sprites/fireburst.png";
+import auraSheet from "../assets/sprites/aura.png";
+import rippleSheet from "../assets/sprites/ripple.png";
+import punchSheet from "../assets/sprites/punch.png";
 
 const TICK_MS = 165;
 
@@ -57,6 +64,20 @@ const LOW_HP = 0.4;
 const REST_RANGE = 24;
 export const HP_REGEN_TICKS = 16;
 const EFFECT_LIFE = 5;
+
+// Which plate stands in for each kind of hit, and how it is tinted. The pack has
+// one white burst and one fiery one, so the rest are recoloured from those.
+export const EFFECT_ART = {
+  melee: { sheet: punchSheet, frames: 4, tall: false, filter: "none" },
+  flame: { sheet: fireburstSheet, frames: 4, tall: false, filter: "none" },
+  spark: { sheet: burstSheet, frames: 4, tall: false, filter: "hue-rotate(185deg) saturate(2.5)" },
+  frost: { sheet: burstSheet, frames: 4, tall: false, filter: "hue-rotate(160deg) saturate(2) brightness(1.15)" },
+  storm: { sheet: burstSheet, frames: 4, tall: false, filter: "hue-rotate(255deg) saturate(2.2)" },
+  quake: { sheet: fireburstSheet, frames: 4, tall: false, filter: "hue-rotate(28deg) saturate(0.7)" },
+  nova: { sheet: rippleSheet, frames: 6, tall: true, filter: "hue-rotate(255deg) saturate(1.8)" },
+  judge: { sheet: rippleSheet, frames: 6, tall: true, filter: "hue-rotate(70deg) brightness(1.3)" },
+  heal: { sheet: auraSheet, frames: 4, tall: true, filter: "none" },
+};
 // Timed against the scene cross-fade in App.css so the hero dims out of the old
 // land and brightens into the new one alongside it, rather than snapping across.
 // Far enough past the edges that the label's clipping hides him entirely, so
@@ -91,6 +112,7 @@ export const MONSTERS = [
   { kind: "skeleton", sheet: skeletonSheet, sheetFrames: 8, color: "#e8e4d9", maxHp: 14, dmg: [2, 5], speed: 0.95, reach: 8, cd: 7, move: "walk" },
   { kind: "ghoul", sheet: ghoulSheet, sheetFrames: 8, color: "#a78bd6", maxHp: 16, dmg: [3, 6], speed: 1.2, reach: 7, cd: 8, move: "walk" },
   { kind: "mummy", sheet: mummySheet, sheetFrames: 8, color: "#d9c9a0", maxHp: 18, dmg: [3, 5], speed: 0.7, reach: 7, cd: 9, move: "walk" },
+  { kind: "mimic", sheet: mimicSheet, sheetFrames: 4, color: "#c9962b", maxHp: 22, dmg: [4, 8], speed: 0.9, reach: 6, cd: 7, move: "hop" },
   { kind: "warlock", sheet: warlockSheet, sheetFrames: 8, color: "#8fd7ff", maxHp: 13, dmg: [1, 6], speed: 1.0, reach: 9, cd: 6, move: "float" },
 ];
 
@@ -102,6 +124,9 @@ export const BOSSES = [
   { kind: "death", sheet: deathSheet, sheetFrames: 8, color: "#cfd6e6", maxHp: 130, dmg: [8, 14], speed: 0.8, reach: 11, cd: 9, move: "float", boss: true },
   { kind: "redknight", sheet: redknightSheet, sheetFrames: 12, color: "#c9452f", maxHp: 150, dmg: [9, 15], speed: 0.6, reach: 10, cd: 10, move: "walk", boss: true },
 ];
+
+// How often a chest on the ground turns out to have teeth.
+export const MIMIC_CHANCE = 0.18;
 
 export const BOSS_MIN_LEVEL = 5;
 export const BOSS_CHANCE_CAP = 0.2;
@@ -713,6 +738,7 @@ export function step(prev) {
         id: id(),
         x: clamp(FIELD_MIN + Math.random() * (FIELD_MAX - FIELD_MIN), FIELD_MIN, FIELD_MAX),
         born: tick,
+        mimic: Math.random() < MIMIC_CHANCE,
         contents: rollChestContents(),
       });
     }
@@ -848,6 +874,7 @@ export function step(prev) {
               hero = gainXp(hero, earned);
               if (hero.level > before) {
                 floats = addFloat(floats, tick, "LEVEL " + hero.level, "#8affc1", hero.x);
+                effects = addEffect(effects, tick, "heal", hero.x);
               }
             }
 
@@ -855,6 +882,7 @@ export function step(prev) {
           } else {
             const crit = Math.random() < 0.18;
             const damage = rollBetween([3, 6]) + hero.weapon + (crit ? 5 : 0);
+            effects = addEffect(effects, tick, "melee", target.x);
 
             hero.state = "attack";
             hero.timer = ATTACK_TICKS;
@@ -963,9 +991,10 @@ export function step(prev) {
   // holds at once.
   if (!hero.dead && drops.length) {
     const kept = [];
-    // Collected into a list the loop only appends to, so the closure below does
-    // not capture a variable being reassigned each pass.
+    // Collected into lists the loop only appends to, so the closures below do
+    // not capture variables being reassigned each pass.
     const announced = [];
+    let sprung = [];
 
     for (const d of drops) {
       if (Math.abs(d.x - hero.x) > PICKUP_RANGE || !worthTaking(hero, d)) {
@@ -975,7 +1004,23 @@ export function step(prev) {
 
       const push = (text, color) => announced.push({ text, color, x: d.x });
 
-      if (d.kind === "chest") {
+      if (d.kind === "chest" && d.mimic) {
+        // Bait. It springs the moment he reaches for it.
+        const def = MONSTERS.find((m) => m.kind === "mimic");
+        sprung = sprung.concat({
+          ...def,
+          id: id(),
+          hp: def.maxHp,
+          x: d.x,
+          face: hero.x >= d.x ? 1 : -1,
+          state: "attack",
+          timer: ATTACK_TICKS,
+          cooldown: 2,
+          slot: 0,
+          dead: false,
+        });
+        push("MIMIC!", "#ff6b8a");
+      } else if (d.kind === "chest") {
         push("CHEST", "#ffd76b");
         for (const entry of d.contents) {
           hero = applyPickup(hero, entry, push);
@@ -987,6 +1032,12 @@ export function step(prev) {
 
     for (const a of announced) {
       floats = addFloat(floats, tick, a.text, a.color, a.x);
+    }
+
+    if (sprung.length) {
+      monsters = monsters.concat(sprung);
+      waveGap = 0;
+      travelling = false;
     }
 
     drops = kept;
@@ -1115,24 +1166,23 @@ function MonsterSprite({ sheet, frames }) {
 }
 
 function DropSprite({ drop }) {
+  // A chest and a mimic are drawn from the same plate on purpose: if the bait
+  // looked different from the real thing it would not be bait.
   if (drop.kind === "chest") {
     return (
-      <svg viewBox="0 0 12 10" shapeRendering="crispEdges">
-        <path fill="#8a5f1c" d="M1 3h10v6H1z" />
-        <path fill="#c9962b" d="M1 0h10v3H1z" />
-        <rect x="1" y="3" width="10" height="1" fill="#6b4a2a" />
-        <rect x="5" y="2" width="2" height="3" fill="#ffd76b" />
-        <rect x="5" y="3" width="2" height="1" fill="#6b4a2a" />
-      </svg>
+      <span
+        className="bs-plate bs-plate--still bs-plate--drop"
+        style={{ backgroundImage: "url(" + mimicSheet + ")", "--frames": 4 }}
+      />
     );
   }
 
   if (drop.kind === "coin") {
     return (
-      <svg viewBox="0 0 7 7" shapeRendering="crispEdges">
-        <path fill="#ffd76b" d="M2 0h3v1h1v5H1V1h1z" />
-        <rect x="3" y="2" width="1" height="3" fill="#c9962b" />
-      </svg>
+      <span
+        className="bs-plate bs-plate--drop"
+        style={{ backgroundImage: "url(" + goldSheet + ")", "--frames": 4 }}
+      />
     );
   }
 
@@ -1147,7 +1197,6 @@ function DropSprite({ drop }) {
     );
   }
 
-  // Everything out of the catalogue is drawn by its type, tinted per item.
   if (drop.type === "spell") {
     return (
       <svg viewBox="0 0 8 8" shapeRendering="crispEdges">
@@ -1169,10 +1218,23 @@ function DropSprite({ drop }) {
     );
   }
 
-  if (drop.type === "relic") {
+  if (drop.type === "shield" || drop.type === "helm") {
     return (
       <svg viewBox="0 0 8 8" shapeRendering="crispEdges">
-        <path fill={drop.color} d="M3 0h2v1h2v2h1v2H6v3H2V5H0V3h1V1h2z" />
+        <path fill={drop.color} d="M1 1h6v4H1z" />
+        <path fill={drop.color} d="M2 5h4v2H2z" />
+        <rect x="1" y="1" width="6" height="1" fill="#ffffff" />
+      </svg>
+    );
+  }
+
+  if (SLOTS.indexOf(drop.type) !== -1) {
+    return (
+      <svg viewBox="0 0 8 8" shapeRendering="crispEdges">
+        <path fill={drop.color} d="M2 1h4v6H2z" />
+        <rect x="1" y="1" width="2" height="3" fill={drop.color} />
+        <rect x="5" y="1" width="2" height="3" fill={drop.color} />
+        <rect x="2" y="1" width="4" height="1" fill="#ffffff" />
       </svg>
     );
   }
@@ -1182,6 +1244,21 @@ function DropSprite({ drop }) {
       <path fill={drop.color || "#e8e4d9"} d="M2 1h3v1h1v3H1V2h1z" />
       <rect x="2" y="2" width="1" height="1" fill="#ffffff" opacity="0.5" />
     </svg>
+  );
+}
+
+function EffectSprite({ kind }) {
+  const art = EFFECT_ART[kind] || EFFECT_ART.melee;
+  return (
+    <span
+      className={"bs-plate bs-plate--fx" + (art.tall ? " bs-plate--tall" : "")}
+      style={{
+        backgroundImage: "url(" + art.sheet + ")",
+        filter: art.filter,
+        "--frames": art.frames,
+        "--fxframes": art.frames,
+      }}
+    />
   );
 }
 
@@ -1222,18 +1299,6 @@ export function ItemIcon({ item }) {
     );
   }
 
-  if (item.type === "armour") {
-    return (
-      <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
-        <path fill={c} d="M2 1h6v7H2z" />
-        <rect x="1" y="1" width="2" height="3" fill={c} />
-        <rect x="7" y="1" width="2" height="3" fill={c} />
-        <rect x="2" y="1" width="6" height="1" fill="#ffffff" />
-        <rect x="4" y="3" width="2" height="3" fill="#4a7fe0" />
-      </svg>
-    );
-  }
-
   if (item.type === "helm") {
     return (
       <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
@@ -1251,6 +1316,18 @@ export function ItemIcon({ item }) {
       <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
         <path fill={c} d="M2 1h6v5H2z" />
         <path fill={c} d="M3 6h4v2H3zM4 8h2v1H4z" />
+        <rect x="2" y="1" width="6" height="1" fill="#ffffff" />
+        <rect x="4" y="3" width="2" height="3" fill="#4a7fe0" />
+      </svg>
+    );
+  }
+
+  if (item.type === "top" || item.type === "legs" || item.type === "boots" || item.type === "gloves") {
+    return (
+      <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
+        <path fill={c} d="M2 1h6v7H2z" />
+        <rect x="1" y="1" width="2" height="3" fill={c} />
+        <rect x="7" y="1" width="2" height="3" fill={c} />
         <rect x="2" y="1" width="6" height="1" fill="#ffffff" />
         <rect x="4" y="3" width="2" height="3" fill="#4a7fe0" />
       </svg>
@@ -1416,7 +1493,9 @@ export default function BattleScene() {
       ))}
 
       {(effects || []).map((e) => (
-        <span key={e.id} className={"bs-fx bs-fx--" + e.key} style={{ left: e.x + "%" }} />
+        <span key={e.id} className="bs-fx" style={{ left: e.x + "%" }}>
+          <EffectSprite kind={e.key} />
+        </span>
       ))}
 
       <span
@@ -1444,7 +1523,7 @@ export default function BattleScene() {
           style={{ left: m.x + "%", color: m.color }}
         >
           <span className="bs-meters">
-            <Bar value={m.hp} max={m.maxHp} color={m.color} width={18} />
+            <Bar value={m.hp} max={m.maxHp} color={m.color} width={26} />
           </span>
           <span className="bs-facing" style={{ transform: "scaleX(" + m.face + ")" }}>
             <span className="bs-sprite">
@@ -1458,7 +1537,7 @@ export default function BattleScene() {
         <span
           key={f.id}
           className="bs-float"
-          style={{ left: f.x + "%", color: f.color, bottom: 34 + (f.lane || 0) * 11 + "px" }}
+          style={{ left: f.x + "%", color: f.color, bottom: 60 + (f.lane || 0) * 11 + "px" }}
         >
           {f.text}
         </span>

@@ -1,6 +1,6 @@
 import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
-  MONSTERS, BOSSES, bossChance, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
+  MONSTERS, BOSSES, EFFECT_ART, bossChance, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
   itemScore, worthTaking,
   HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
@@ -35,9 +35,17 @@ function monster(kind, x, extra = {}) {
   };
 }
 
-test('there are seven kinds of monster, each with its own sprite key', () => {
-  expect(MONSTERS).toHaveLength(7);
-  expect(new Set(MONSTERS.map((m) => m.kind)).size).toBe(7);
+test('there are several kinds of monster, each with its own sprite key', () => {
+  expect(MONSTERS.length).toBeGreaterThanOrEqual(8);
+  expect(new Set(MONSTERS.map((m) => m.kind)).size).toBe(MONSTERS.length);
+});
+
+test('the mimic is the nastiest of the common monsters', () => {
+  const mimic = MONSTERS.find((m) => m.kind === 'mimic');
+  const others = MONSTERS.filter((m) => m.kind !== 'mimic');
+
+  expect(mimic.maxHp).toBeGreaterThan(Math.max(...others.map((m) => m.maxHp)));
+  expect(mimic.dmg[1]).toBeGreaterThan(Math.max(...others.map((m) => m.dmg[1])));
 });
 
 test('the original hopping slime is still one of them', () => {
@@ -357,8 +365,10 @@ test('mana trickles back without a drop', () => {
 });
 
 test('the hero outlasts any single monster', () => {
+  // The mimic is the sturdiest of them, deliberately, so the margin is smaller
+  // than it was when the toughest common monster had sixteen health.
   const toughest = Math.max(...MONSTERS.map((m) => m.maxHp));
-  expect(HERO_MAX_HP).toBeGreaterThan(toughest * 3);
+  expect(HERO_MAX_HP).toBeGreaterThan(toughest * 2.5);
 });
 
 test('armour takes the edge off every blow', () => {
@@ -961,4 +971,54 @@ test('every monster and boss has a plate and a frame count', () => {
 test('monster kinds are distinct, so no two share a plate by accident', () => {
   const kinds = MONSTERS.concat(BOSSES).map((m) => m.kind);
   expect(new Set(kinds).size).toBe(kinds.length);
+});
+
+
+test('a chest is sometimes bait, and springing it puts a mimic on the field', () => {
+  const state = {
+    ...heroAt(40, { cooldown: 999 }),
+    monsters: [],
+    wavesLeft: 0,
+    drops: [{
+      kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 41, x: 40, born: 0,
+      mimic: true, contents: [COMMON_ITEMS[0]],
+    }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.drops).toHaveLength(0);
+  expect(after.monsters).toHaveLength(1);
+  expect(after.monsters[0].kind).toBe('mimic');
+  expect(after.floats.some((f) => f.text === 'MIMIC!')).toBe(true);
+  // It sprang, so he is not wandering off.
+  expect(after.travelling).toBe(false);
+});
+
+test('a chest that is not bait still hands over its contents', () => {
+  const tome = SPECIAL_ITEMS.find((i) => i.type === 'spell');
+  const state = {
+    ...heroAt(40, { cooldown: 999 }),
+    monsters: [],
+    drops: [{
+      kind: 'chest', name: 'CHEST', color: '#ffd76b', id: 42, x: 40, born: 0,
+      mimic: false, contents: [tome],
+    }],
+  };
+  const after = withRandom(0.9, () => step(state));
+
+  expect(after.monsters).toHaveLength(0);
+  expect(after.hero.powers).toContain(tome.grants);
+});
+
+test('every effect kind has art behind it', () => {
+  for (const power of POWERS) {
+    expect(EFFECT_ART[power.key]).toBeDefined();
+  }
+  for (const extra of ['melee', 'heal']) {
+    expect(EFFECT_ART[extra]).toBeDefined();
+  }
+  for (const art of Object.values(EFFECT_ART)) {
+    expect(typeof art.sheet).toBe('string');
+    expect(art.frames).toBeGreaterThanOrEqual(4);
+  }
 });
