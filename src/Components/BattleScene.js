@@ -128,14 +128,29 @@ export const BOSSES = [
 // How often a chest on the ground turns out to have teeth.
 export const MIMIC_CHANCE = 0.18;
 
-export const BOSS_MIN_LEVEL = 5;
-export const BOSS_CHANCE_CAP = 0.2;
+export const BOSS_MIN_LEVEL = 8;
+export const BOSS_CHANCE_CAP = 0.08;
+// Lands after a boss, and no other may appear until the hero has crossed this
+// many scenes. Rarity alone was not enough; two in quick succession still read
+// as common.
+export const BOSS_COOLDOWN_SCENES = 4;
 
 export function bossChance(level) {
   if (level < BOSS_MIN_LEVEL) {
     return 0;
   }
-  return Math.min(BOSS_CHANCE_CAP, 0.04 + (level - BOSS_MIN_LEVEL) * 0.02);
+  return Math.min(BOSS_CHANCE_CAP, 0.015 + (level - BOSS_MIN_LEVEL) * 0.006);
+}
+
+// Both the level and the distance since the last one have to allow it.
+export function bossAllowed(level, journey, lastBossJourney) {
+  if (level < BOSS_MIN_LEVEL) {
+    return false;
+  }
+  if (lastBossJourney === null || lastBossJourney === undefined) {
+    return true;
+  }
+  return journey - lastBossJourney >= BOSS_COOLDOWN_SCENES;
 }
 
 const DROPS = [
@@ -168,8 +183,8 @@ export function rollWaveCount() {
   return WAVES_MIN + Math.floor(Math.random() * (WAVES_MAX - WAVES_MIN + 1));
 }
 
-export function spawnWave(heroX = 16, level = 1) {
-  if (Math.random() < bossChance(level)) {
+export function spawnWave(heroX = 16, level = 1, allowBoss = true) {
+  if (allowBoss && Math.random() < bossChance(level)) {
     const def = pick(BOSSES);
     const x = heroX > (FIELD_MIN + FIELD_MAX) / 2 ? FIELD_MIN + 6 : FIELD_MAX - 6;
     return [{
@@ -395,9 +410,41 @@ export function worthTaking(hero, item) {
   return true;
 }
 
+// The rarest things in the game. Seven pieces, one per slot, found only in a
+// boss hoard. The blade is the ceiling the whole scale was built around.
+export const GOD_SET = [
+  { key: "god-weapon", name: "GODS GOLD BLADE", type: "weapon", tier: 7, power: 99, element: "holy", color: "#ffd76b", god: true },
+  { key: "god-shield", name: "GODS GOLD AEGIS", type: "shield", tier: 4, defence: 20, maxHp: 40, color: "#ffd76b", god: true },
+  { key: "god-helm", name: "GODS GOLD CROWN", type: "helm", tier: 4, defence: 15, maxHp: 30, color: "#ffd76b", god: true },
+  { key: "god-top", name: "GODS GOLD PLATE", type: "top", tier: 4, defence: 25, maxHp: 60, color: "#ffd76b", god: true },
+  { key: "god-legs", name: "GODS GOLD GREAVES", type: "legs", tier: 4, defence: 15, maxHp: 35, color: "#ffd76b", god: true },
+  { key: "god-boots", name: "GODS GOLD SABATONS", type: "boots", tier: 4, defence: 12, maxHp: 20, speed: 0.6, color: "#ffd76b", god: true },
+  { key: "god-gloves", name: "GODS GOLD GAUNTLETS", type: "gloves", tier: 4, defence: 10, power: 12, color: "#ffd76b", god: true },
+];
+
+export const GOD_DROP_CHANCE = 0.3;
+
+export function hasFullGodSet(gear) {
+  return SLOTS.every((slot) => gear[slot] && gear[slot].god);
+}
+
+// What a piece adds, written the way a player reads it.
+export function describeItem(item) {
+  if (!item) {
+    return "";
+  }
+  const parts = [];
+  if (item.power) parts.push("+" + item.power + " ATK");
+  if (item.defence) parts.push("+" + item.defence + " DEF");
+  if (item.maxHp) parts.push("+" + item.maxHp + " HP");
+  if (item.speed) parts.push("+" + item.speed.toFixed(2).replace(/0+$/, "").replace(/\.$/, "") + " SPD");
+  if (item.element) parts.push(item.element.toUpperCase());
+  return parts.join("  ");
+}
+
 export const MAX_LEVEL = 99;
 
-export const ITEMS = COMMON_ITEMS.concat(SPECIAL_ITEMS);
+export const ITEMS = COMMON_ITEMS.concat(SPECIAL_ITEMS).concat(GOD_SET);
 
 // A chest holds one to three things and never gold or potions. A full chest of
 // three always carries at least one special.
@@ -584,6 +631,7 @@ export function initialState() {
     waveGap: 0,
     journey: 0,
     travelling: false,
+    lastBossJourney: null,
     wavesLeft: rollWaveCount() - 1,
   };
 }
@@ -655,6 +703,7 @@ export function step(prev) {
   let waveGap = prev.waveGap;
   let journey = prev.journey || 0;
   let travelling = prev.travelling || false;
+  let lastBossJourney = prev.lastBossJourney === undefined ? null : prev.lastBossJourney;
   let wavesLeft = prev.wavesLeft === undefined ? 0 : prev.wavesLeft;
 
   let hero = advance(prev.hero);
@@ -693,6 +742,7 @@ export function step(prev) {
       waveGap: 0,
       journey,
       travelling: false,
+      lastBossJourney,
       wavesLeft: rollWaveCount() - 1,
       hero: {
         ...hero,
@@ -724,7 +774,9 @@ export function step(prev) {
         kind: "chest", name: "HOARD", color: "#ffd76b",
         id: id(), x: m.x, born: tick,
         gold: 60 + Math.floor(Math.random() * 90),
-        contents: rollChestContents().concat(pick(SPECIAL_ITEMS)),
+        contents: rollChestContents()
+          .concat(pick(SPECIAL_ITEMS))
+          .concat(Math.random() < GOD_DROP_CHANCE ? [pick(GOD_SET)] : []),
       });
     } else if (Math.random() < DROP_CHANCE) {
       const loot = Math.random() < 0.4
@@ -759,7 +811,12 @@ export function step(prev) {
     if (wanted.length === 0 && waveGap >= WAVE_PAUSE) {
       if (wavesLeft > 0) {
         // The scene has more to throw at him, so he stays put.
-        monsters = monsters.concat(spawnWave(hero.x, hero.level));
+        monsters = monsters.concat(
+          spawnWave(hero.x, hero.level, bossAllowed(hero.level, journey, lastBossJourney))
+        );
+        if (monsters.some((m) => m.boss)) {
+          lastBossJourney = journey;
+        }
         wavesLeft -= 1;
         waveGap = 0;
       } else {
@@ -789,7 +846,14 @@ export function step(prev) {
       // The left property is eased, which would drag him back across the frame
       // in view. This marks the one frame that must not animate.
       hero.warp = tick;
-      monsters = spawnWave(FIELD_MIN + 20, hero.level);
+      monsters = spawnWave(
+        FIELD_MIN + 20,
+        hero.level,
+        bossAllowed(hero.level, journey, lastBossJourney)
+      );
+      if (monsters.some((m) => m.boss)) {
+        lastBossJourney = journey;
+      }
       wavesLeft = rollWaveCount() - 1;
       const arrival = sceneAt(journey);
       floats = addFloat(
@@ -806,7 +870,7 @@ export function step(prev) {
       waveGap = 0;
     }
 
-    return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft };
+    return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft, lastBossJourney };
   }
 
   // Hero: fetch loot when the field allows it, otherwise close on the nearest
@@ -1068,7 +1132,7 @@ export function step(prev) {
     drops = kept.concat(spilled);
   }
 
-  return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft };
+  return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft, lastBossJourney };
 }
 
 function prefersReducedMotion() {
@@ -1081,18 +1145,19 @@ function prefersReducedMotion() {
 
 // Palettes per slot tier. Tier 0 is the clothes he sets out in, so every piece
 // found visibly replaces cloth with something better.
-const TOP_COLOURS = ["#3d4a66", "#7a5334", "#7f8ba6", "#c6d0e4"];
-const LEG_COLOURS = ["#331b0a", "#5c3a1c", "#5f6a84", "#aab4c9"];
-const BOOT_COLOURS = ["#663614", "#7d4a20", "#6f7a92", "#b9c2d6"];
-const GLOVE_COLOURS = ["#cca38e", "#8a5a33", "#7b869e", "#c6d0e4"];
-const HELM_COLOURS = ["#663614", "#8a5a33", "#7f8ba6", "#c6d0e4"];
+const TOP_COLOURS = ["#3d4a66", "#7a5334", "#7f8ba6", "#c6d0e4", "#f0c34a"];
+const LEG_COLOURS = ["#331b0a", "#5c3a1c", "#5f6a84", "#aab4c9", "#d9a636"];
+const BOOT_COLOURS = ["#663614", "#7d4a20", "#6f7a92", "#b9c2d6", "#c9962b"];
+const GLOVE_COLOURS = ["#cca38e", "#8a5a33", "#7b869e", "#c6d0e4", "#f0c34a"];
+const HELM_COLOURS = ["#663614", "#8a5a33", "#7f8ba6", "#c6d0e4", "#ffd76b"];
 
 // Shields are carried, not worn, so they stay an overlay.
 const SHIELD_COLOURS = [
   null,
-  { base: "#c9962b", lit: "#ffd76b" },
-  { base: "#cfd6e6", lit: "#f6f9ff" },
-  { base: "#ffd76b", lit: "#fff6c9" },
+  { base: "#8a6f4a", lit: "#c9a882", boss: "#5c4830" },
+  { base: "#c9962b", lit: "#ffd76b", boss: "#8a5f1c" },
+  { base: "#cfd6e6", lit: "#f6f9ff", boss: "#9aa3bb" },
+  { base: "#ffd76b", lit: "#fff6c9", boss: "#c9962b" },
 ];
 
 // Which pixels of the base plate belong to which slot. The artist reused one
@@ -1103,7 +1168,6 @@ const SWAPS = [
   { slot: "legs", from: [0x33, 0x1b, 0x0a], rows: [9, 15], palette: LEG_COLOURS },
   { slot: "boots", from: [0x66, 0x36, 0x14], rows: [12, 15], palette: BOOT_COLOURS },
   { slot: "gloves", from: [0xcc, 0xa3, 0x8e], rows: [10, 13], palette: GLOVE_COLOURS },
-  { slot: "helm", from: [0x66, 0x36, 0x14], rows: [0, 7], palette: HELM_COLOURS },
 ];
 
 function hexToRgb(hex) {
@@ -1125,7 +1189,9 @@ export function recolourKey(gear) {
 
 function recolouredSheet(gear) {
   const key = recolourKey(gear);
-  if (key === "0-0-0-0-0") {
+  // Derived rather than spelled out, so adding or removing a swap cannot leave
+  // this checking for a key that no longer exists.
+  if (/^0(-0)*$/.test(key)) {
     return warriorBase;
   }
   if (sheetCache.has(key)) {
@@ -1155,7 +1221,7 @@ function recolouredSheet(gear) {
   const rules = SWAPS
     .map((sw) => {
       const tier = gear[sw.slot] ? gear[sw.slot].tier : 0;
-      return tier > 0 ? { ...sw, to: hexToRgb(sw.palette[Math.min(tier, 3)]) } : null;
+      return tier > 0 ? { ...sw, to: hexToRgb(sw.palette[Math.min(tier, 4)]) } : null;
     })
     .filter(Boolean);
 
@@ -1224,16 +1290,18 @@ function HeroSprite({ gear, frames }) {
   const helmTier = tierOf(gear.helm);
   const shieldTier = tierOf(gear.shield);
   const weapon = gear.weapon || STARTER_WEAPON;
+  const helm = HELM_COLOURS[Math.min(helmTier, 4)];
 
   const blade = [
-    { len: 3, body: "#b9c2de", edge: "#eef2ff" },
-    { len: 4, body: "#c9cfdd", edge: "#f4f7ff" },
-    { len: 4, body: "#eef2ff", edge: "#ffffff" },
-    { len: 5, body: "#ff9b4a", edge: "#ffd76b" },
-    { len: 5, body: "#8fd7ff", edge: "#e6f7ff" },
-    { len: 6, body: "#d7b3ff", edge: "#f0e2ff" },
-    { len: 6, body: "#e8dcae", edge: "#ffd76b" },
-  ][Math.min(weapon.tier, 6)];
+    { len: 3, w: 1, body: "#b9c2de", edge: "#eef2ff", guard: "#8a7f5a" },
+    { len: 4, w: 1, body: "#c9cfdd", edge: "#f4f7ff", guard: "#c9962b" },
+    { len: 5, w: 1, body: "#eef2ff", edge: "#ffffff", guard: "#c9962b" },
+    { len: 5, w: 2, body: "#ff7a2a", edge: "#ffd76b", guard: "#8a3a10" },
+    { len: 6, w: 2, body: "#5fc7ff", edge: "#e6f7ff", guard: "#2a6a8a" },
+    { len: 6, w: 2, body: "#c08cff", edge: "#f0e2ff", guard: "#5a3a8a" },
+    { len: 7, w: 2, body: "#e8dcae", edge: "#ffd76b", guard: "#c9962b" },
+    { len: 8, w: 3, body: "#ffd76b", edge: "#fff6c9", guard: "#c9962b" },
+  ][Math.min(weapon.tier, 7)];
 
   return (
     <span className="bs-rig">
@@ -1242,27 +1310,55 @@ function HeroSprite({ gear, frames }) {
         style={{ backgroundImage: "url(" + sheet + ")", "--frames": frames }}
       />
       <svg className="bs-over" viewBox="0 0 16 16" shapeRendering="crispEdges">
-        {/* A heavier helm adds a brow and a nasal bar over the repainted hair,
-            deliberately leaving the eyes and cheeks showing. */}
-        {helmTier >= 2 && (
+        {/* The helm is worn over the head, not tinted onto the hair: the crown
+            is covered flat and only the eyes and cheeks are left showing. */}
+        {helmTier > 0 && (
           <g>
-            <rect x="5" y="5" width="6" height="1" fill={HELM_COLOURS[Math.min(helmTier, 3)]} />
-            {helmTier >= 3 && <rect x="7" y="6" width="1" height="2" fill={HELM_COLOURS[3]} />}
+            <rect x="5" y="3" width="6" height="3" fill={helm} />
+            <rect x="5" y="3" width="6" height="1" fill="#ffffff" opacity="0.45" />
+            <rect x="4" y="4" width="1" height="3" fill={helm} />
+            <rect x="11" y="4" width="1" height="3" fill={helm} />
+            {helmTier >= 2 && <rect x="5" y="6" width="6" height="1" fill={helm} opacity="0.85" />}
+            {helmTier >= 3 && <rect x="7" y="6" width="1" height="3" fill={helm} />}
+            {helmTier >= 4 && (
+              <g>
+                <rect x="4" y="2" width="1" height="1" fill="#fff6c9" />
+                <rect x="7" y="1" width="2" height="2" fill="#fff6c9" />
+                <rect x="11" y="2" width="1" height="1" fill="#fff6c9" />
+              </g>
+            )}
           </g>
         )}
 
-        {/* Held, not worn: these belong on top of the body. */}
+        {/* Carried, so drawn over the body. A heavier shield is taller, wider
+            and bossed. */}
         {shieldTier > 0 && (
           <g>
-            <rect x="3" y={10 - shieldTier} width="3" height={3 + shieldTier} fill={SHIELD_COLOURS[shieldTier].base} />
-            <rect x="3" y={10 - shieldTier} width="3" height="1" fill={SHIELD_COLOURS[shieldTier].lit} />
+            <rect
+              x={4 - Math.min(shieldTier, 2)}
+              y={10 - shieldTier}
+              width={2 + Math.min(shieldTier, 2)}
+              height={3 + shieldTier}
+              fill={SHIELD_COLOURS[Math.min(shieldTier, 4)].base}
+            />
+            <rect
+              x={4 - Math.min(shieldTier, 2)}
+              y={10 - shieldTier}
+              width={2 + Math.min(shieldTier, 2)}
+              height="1"
+              fill={SHIELD_COLOURS[Math.min(shieldTier, 4)].lit}
+            />
+            {shieldTier >= 2 && (
+              <rect x="3" y="10" width="2" height="2" fill={SHIELD_COLOURS[Math.min(shieldTier, 4)].boss} />
+            )}
           </g>
         )}
 
-        <g className="bs-hero-arm">
-          <rect x="12" y={10 - blade.len} width="1" height={blade.len} fill={blade.body} />
-          <rect x="12" y={10 - blade.len} width="1" height="1" fill={blade.edge} />
-          <rect x="11" y="10" width="3" height="1" fill="#c9962b" />
+        <g className={"bs-hero-arm" + (weapon.element ? " bs-blade--" + weapon.element : "")}>
+          <rect x="12" y={11 - blade.len} width={blade.w} height={blade.len} fill={blade.body} />
+          <rect x="12" y={11 - blade.len} width="1" height={blade.len} fill={blade.edge} />
+          <rect x="12" y={11 - blade.len} width={blade.w} height="1" fill="#ffffff" />
+          <rect x="11" y="11" width={2 + blade.w} height="1" fill={blade.guard} />
         </g>
       </svg>
     </span>
@@ -1471,7 +1567,10 @@ function Slot({ label, item, fallback }) {
     <div className="bs-slot">
       <span className="bs-sheet__label">{label}</span>
       {item ? <ItemIcon item={item} /> : <span className="bs-icon bs-icon--empty" />}
-      <span>{item ? item.name : fallback}</span>
+      <span className={item && item.god ? "bs-tag--god" : undefined}>
+        {item ? item.name : fallback}
+      </span>
+      {item && <span className="bs-slot__stat">{describeItem(item)}</span>}
     </div>
   );
 }
@@ -1562,12 +1661,17 @@ function StatusSheet({ hero, onClose }) {
               hero.inventory.map((item, i) => (
                 <div className="bs-bag__row" key={item.key + i}>
                   <ItemIcon item={item} />
-                  <span>{item.name || item.label}</span>
+                  <span className={item.god ? "bs-tag--god" : undefined}>{item.name || item.label}</span>
+                  <span className="bs-bag__stat">{describeItem(item)}</span>
                   <span className="bs-bag__kind">{(item.type || item.kind).toUpperCase()}</span>
                 </div>
               ))
             )}
           </div>
+        )}
+
+        {hasFullGodSet(hero.gear) && (
+          <p className="bs-sheet__god">GODS GOLD SET COMPLETE</p>
         )}
 
         <p className="bs-sheet__hint">CLICK ANYWHERE TO CLOSE</p>
@@ -1615,7 +1719,7 @@ export default function BattleScene() {
       <span
         className={"bs-unit bs-unit--hero bs-move-walk is-" + hero.state
           + (hero.warp === state.tick ? " is-warp" : "")
-          + (hero.element ? " elem-" + hero.element : "")
+          + (hasFullGodSet(hero.gear) ? " is-godly" : "")
           + (hero.state === "cast" && hero.spell ? " spell-" + hero.spell : "")}
         style={{ left: hero.x + "%" }}
       >

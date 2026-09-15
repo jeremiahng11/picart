@@ -1,6 +1,7 @@
 import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
-  MONSTERS, BOSSES, EFFECT_ART, bossChance, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
+  MONSTERS, BOSSES, EFFECT_ART, bossChance, bossAllowed, BOSS_COOLDOWN_SCENES,
+  GOD_SET, hasFullGodSet, describeItem, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
   itemScore, worthTaking, recolourKey,
   HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
@@ -1069,7 +1070,7 @@ test('spilled loot is spread out rather than stacked on one spot', () => {
 
 test('the repaint key changes with what he is wearing, and only with that', () => {
   const base = initialState().hero;
-  expect(recolourKey(base.gear)).toBe('0-0-0-0-0');
+  expect(recolourKey(base.gear)).toMatch(/^0(-0)*$/);
 
   const top = SPECIAL_ITEMS.find((i) => i.type === 'top' && i.tier === 3);
   const dressed = applyPickup(base, top, () => {});
@@ -1085,4 +1086,92 @@ test('each body slot has a colour for every tier it can reach', () => {
     const tiers = SPECIAL_ITEMS.filter((i) => i.type === slot).map((i) => i.tier);
     expect(Math.max(...tiers)).toBeLessThanOrEqual(3);
   }
+});
+
+
+test('bosses need both the level and room since the last one', () => {
+  expect(bossAllowed(BOSS_MIN_LEVEL - 1, 50, null)).toBe(false);
+  expect(bossAllowed(BOSS_MIN_LEVEL, 50, null)).toBe(true);
+
+  // One has just been fought, so the next few scenes are clear of them.
+  expect(bossAllowed(40, 10, 10)).toBe(false);
+  expect(bossAllowed(40, 10 + BOSS_COOLDOWN_SCENES - 1, 10)).toBe(false);
+  expect(bossAllowed(40, 10 + BOSS_COOLDOWN_SCENES, 10)).toBe(true);
+});
+
+test('bosses are rarer than they were', () => {
+  expect(bossChance(BOSS_MIN_LEVEL)).toBeLessThan(0.05);
+  expect(bossChance(99)).toBeLessThanOrEqual(BOSS_CHANCE_CAP);
+  expect(BOSS_CHANCE_CAP).toBeLessThanOrEqual(0.1);
+});
+
+test('a wave refuses to hold a boss when it is not allowed one', () => {
+  for (let i = 0; i < 400; i++) {
+    expect(spawnWave(50, 90, false).some((m) => m.boss)).toBe(false);
+  }
+});
+
+test('the god set has a piece for every slot and tops the scale', () => {
+  expect(GOD_SET).toHaveLength(SLOTS.length);
+  expect(new Set(GOD_SET.map((i) => i.type))).toEqual(new Set(SLOTS));
+
+  for (const piece of GOD_SET) {
+    expect(piece.god).toBe(true);
+    const rival = SPECIAL_ITEMS.filter((i) => i.type === piece.type);
+    expect(itemScore(piece)).toBeGreaterThan(Math.max(...rival.map(itemScore)));
+  }
+
+  expect(GOD_SET.find((i) => i.type === 'weapon').power).toBe(99);
+});
+
+test('god gold is never in an ordinary chest', () => {
+  for (let i = 0; i < 300; i++) {
+    for (const entry of rollChestContents()) {
+      expect(entry.god).toBeUndefined();
+    }
+  }
+});
+
+test('the set only counts as complete when every slot is god gold', () => {
+  let hero = initialState().hero;
+  expect(hasFullGodSet(hero.gear)).toBe(false);
+
+  for (const piece of GOD_SET) {
+    hero = applyPickup(hero, piece, () => {});
+    }
+  expect(hasFullGodSet(hero.gear)).toBe(true);
+
+  const missing = { ...hero, gear: { ...hero.gear, boots: null } };
+  expect(hasFullGodSet(missing.gear)).toBe(false);
+});
+
+test('a piece describes what it adds', () => {
+  const blade = GOD_SET.find((i) => i.type === 'weapon');
+  expect(describeItem(blade)).toContain('+99 ATK');
+  expect(describeItem(blade)).toContain('HOLY');
+
+  const plate = SPECIAL_ITEMS.find((i) => i.key === 'top-plate');
+  expect(describeItem(plate)).toContain('+3 DEF');
+  expect(describeItem(plate)).toContain('+20 HP');
+  expect(describeItem(null)).toBe('');
+});
+
+test('the full set is a real jump over the best ordinary kit', () => {
+  let ordinary = initialState().hero;
+  for (const slot of SLOTS) {
+    const best = SPECIAL_ITEMS.filter((i) => i.type === slot)
+      .sort((a, b) => itemScore(b) - itemScore(a))[0];
+    if (best) {
+      ordinary = applyPickup(ordinary, best, () => {});
+    }
+  }
+
+  let godly = initialState().hero;
+  for (const piece of GOD_SET) {
+    godly = applyPickup(godly, piece, () => {});
+  }
+
+  expect(godly.defence).toBeGreaterThan(ordinary.defence * 5);
+  expect(godly.maxHp).toBeGreaterThan(ordinary.maxHp);
+  expect(godly.weapon).toBeGreaterThan(ordinary.weapon * 5);
 });
