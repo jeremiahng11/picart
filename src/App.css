@@ -1052,6 +1052,29 @@ body {
 .bs-unit--hero.is-attack .bs-hero-arm { animation: bs-swing 0.42s ease-out; }
 .bs-unit--hero.is-attack .bs-sprite { animation: bs-lunge 0.42s ease-out; }
 
+/* Casting raises the blade and washes the hero in the spell's colour. */
+.bs-unit--hero.is-cast .bs-hero-arm { animation: bs-raise 0.62s ease-out; }
+.bs-unit--hero.is-cast .bs-sprite { animation: bs-cast 0.62s ease-out; }
+
+.bs-unit--hero.spell-spark .bs-sprite { --spell: #8fd7ff; }
+.bs-unit--hero.spell-flame .bs-sprite { --spell: #ffb36b; }
+.bs-unit--hero.spell-nova .bs-sprite { --spell: #ff6bd6; }
+
+@keyframes bs-raise {
+  0% { transform: rotate(0deg); }
+  40% { transform: rotate(-96deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes bs-cast {
+  0% { filter: none; transform: translateY(0); }
+  35% {
+    filter: drop-shadow(0 0 5px var(--spell, #fff)) brightness(1.5);
+    transform: translateY(-4px);
+  }
+  100% { filter: none; transform: translateY(0); }
+}
+
 @keyframes bs-swing {
   0% { transform: rotate(-18deg); }
   35% { transform: rotate(-52deg); }

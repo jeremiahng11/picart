@@ -1,4 +1,7 @@
-import { step, initialState, spawnWave, MONSTERS, HERO_MAX_HP, HERO_MAX_MP } from './BattleScene';
+import {
+  step, initialState, spawnWave, choosePower,
+  MONSTERS, POWERS, HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE,
+} from './BattleScene';
 
 // The skirmish rolls dice, so tests pin Math.random to make a frame
 // deterministic.
@@ -108,10 +111,12 @@ test('the hero picks whichever monster is nearest, on either side', () => {
 });
 
 test('the hero swings once the monster is within reach', () => {
+  // A roll above the cast threshold keeps him on the sword.
   const state = { ...heroAt(16), monsters: [monster('skeleton', 21)] };
-  const after = withRandom(0.5, () => step(state));
+  const after = withRandom(0.9, () => step(state));
 
   expect(after.hero.state).toBe('attack');
+  expect(after.hero.mp).toBe(HERO_MAX_MP);
   expect(after.monsters[0].hp).toBeLessThan(after.monsters[0].maxHp);
 });
 
@@ -206,4 +211,90 @@ test('a long skirmish never breaks its invariants', () => {
       expect(m.x).toBeLessThanOrEqual(100);
     }
   }
+});
+
+test('the three powers cost a third, two thirds and all of the mana pool', () => {
+  expect(POWERS).toHaveLength(3);
+  expect(POWERS.map((p) => p.cost)).toEqual([
+    Math.round(HERO_MAX_MP / 3),
+    Math.round((HERO_MAX_MP * 2) / 3),
+    HERO_MAX_MP,
+  ]);
+});
+
+test('the dearest power is the strongest and the only one that hits everything', () => {
+  const [spark, flame, nova] = POWERS;
+
+  expect(flame.dmg[0]).toBeGreaterThan(spark.dmg[1]);
+  expect(nova.dmg[0]).toBeGreaterThan(flame.dmg[1]);
+  expect(nova.aoe).toBe(true);
+  expect(spark.aoe).toBe(false);
+  expect(flame.aoe).toBe(false);
+});
+
+test('the hero casts the strongest power he can afford', () => {
+  expect(choosePower(HERO_MAX_MP, 0).key).toBe('nova');
+  expect(choosePower(POWERS[1].cost, 0).key).toBe('flame');
+  expect(choosePower(POWERS[0].cost, 0).key).toBe('spark');
+});
+
+test('no power is cast without the mana for it', () => {
+  expect(choosePower(POWERS[0].cost - 1, 0)).toBeNull();
+  expect(choosePower(0, 0)).toBeNull();
+});
+
+test('the hero sometimes swings instead of casting', () => {
+  expect(choosePower(HERO_MAX_MP, 0.99)).toBeNull();
+});
+
+test('casting spends the mana it costs', () => {
+  const state = { ...heroAt(16), monsters: [monster('skeleton', 20)] };
+  const after = withRandom(0.1, () => step(state));
+
+  expect(after.hero.state).toBe('cast');
+  expect(after.hero.mp).toBe(HERO_MAX_MP - HERO_MAX_MP);
+  expect(after.monsters[0].hp).toBeLessThan(after.monsters[0].maxHp);
+});
+
+test('the strongest power strikes every monster on the field', () => {
+  const state = {
+    ...heroAt(50),
+    monsters: [
+      monster('skeleton', 54),
+      { ...monster('imp', 20), id: 2 },
+      { ...monster('ghost', 80), id: 3 },
+    ],
+  };
+  const after = withRandom(0.1, () => step(state));
+
+  expect(after.hero.state).toBe('cast');
+  for (const m of after.monsters) {
+    expect(m.hp).toBeLessThan(m.maxHp);
+  }
+});
+
+test('mana trickles back without a drop', () => {
+  let s = { ...heroAt(50, { mp: 0, cooldown: 999 }), monsters: [] };
+  for (let i = 0; i < 30; i++) {
+    s = step(s);
+  }
+  expect(s.hero.mp).toBeGreaterThan(0);
+});
+
+test('the hero outlasts any single monster', () => {
+  const toughest = Math.max(...MONSTERS.map((m) => m.maxHp));
+  expect(HERO_MAX_HP).toBeGreaterThan(toughest * 3);
+});
+
+test('armour takes the edge off every blow', () => {
+  const imp = MONSTERS.find((m) => m.kind === 'imp');
+  const state = {
+    ...heroAt(40, { cooldown: 999 }),
+    monsters: [monster('imp', 42)],
+  };
+  const after = withRandom(0.99, () => step(state));
+
+  const dealt = HERO_MAX_HP - after.hero.hp;
+  expect(dealt).toBe(imp.dmg[1] - HERO_DEFENCE);
+  expect(dealt).toBeGreaterThanOrEqual(1);
 });

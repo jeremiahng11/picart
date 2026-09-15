@@ -27,12 +27,37 @@ import React from "react";
 
 const TICK_MS = 165;
 
-export const HERO_MAX_HP = 30;
+// Comfortably above the sturdiest monster, so a bad wave wears the hero down
+// rather than finishing him.
+export const HERO_MAX_HP = 60;
 export const HERO_MAX_MP = 12;
+export const HERO_DEFENCE = 1;
 
 const HERO_SPEED = 1.5;
 const HERO_REACH = 9;
 const HERO_COOLDOWN = 5;
+const CAST_TICKS = 4;
+const CAST_CHANCE = 0.55;
+const MP_REGEN_TICKS = 26;
+
+// Cost is a fraction of the full mana pool, so the three tiers are a third, two
+// thirds and the lot. The strongest is also the only one that catches every
+// monster on the field.
+export const POWERS = [
+  { key: "spark", name: "SPARK", fraction: 1 / 3, dmg: [7, 11], color: "#8fd7ff", aoe: false },
+  { key: "flame", name: "FLAME", fraction: 2 / 3, dmg: [14, 19], color: "#ffb36b", aoe: false },
+  { key: "nova", name: "NOVA", fraction: 3 / 3, dmg: [22, 30], color: "#ff6bd6", aoe: true },
+].map((p) => ({ ...p, cost: Math.round(p.fraction * HERO_MAX_MP) }));
+
+// The strongest the hero can currently afford, or nothing when mana is short.
+// He does not cast every opening, so the sword still gets used.
+export function choosePower(mp, roll = Math.random()) {
+  const affordable = POWERS.filter((p) => p.cost <= mp);
+  if (affordable.length === 0 || roll > CAST_CHANCE) {
+    return null;
+  }
+  return affordable[affordable.length - 1];
+}
 
 const FIELD_MIN = 4;
 const FIELD_MAX = 94;
@@ -135,6 +160,8 @@ export function initialState() {
       state: "idle",
       timer: 0,
       cooldown: 0,
+      mpTimer: 0,
+      spell: null,
       dead: false,
       respawn: 0,
     },
@@ -153,7 +180,7 @@ function advance(unit) {
   const next = { ...unit };
   next.cooldown = Math.max(0, next.cooldown - 1);
 
-  if (next.state === "attack" || next.state === "hurt") {
+  if (next.state === "attack" || next.state === "cast" || next.state === "hurt") {
     next.timer -= 1;
     if (next.timer <= 0) {
       next.state = "idle";
@@ -173,6 +200,12 @@ export function step(prev) {
 
   let hero = advance(prev.hero);
   let monsters = prev.monsters.map(advance);
+
+  hero.mpTimer = (hero.mpTimer || 0) + 1;
+  if (hero.mpTimer >= MP_REGEN_TICKS) {
+    hero.mpTimer = 0;
+    hero.mp = Math.min(HERO_MAX_MP, hero.mp + 1);
+  }
 
   if (hero.dead) {
     hero.respawn -= 1;
@@ -229,7 +262,7 @@ export function step(prev) {
   }
 
   // Hero: close on the nearest living monster, swing when in reach.
-  if (hero.state !== "attack" && hero.state !== "hurt") {
+  if (hero.state !== "attack" && hero.state !== "cast" && hero.state !== "hurt") {
     const target = living
       .slice()
       .sort((a, b) => Math.abs(a.x - hero.x) - Math.abs(b.x - hero.x))[0];
@@ -240,31 +273,60 @@ export function step(prev) {
 
       if (Math.abs(gap) <= HERO_REACH) {
         if (hero.cooldown === 0) {
-          const crit = Math.random() < 0.18;
-          const damage = rollBetween([3, 6]) + (crit ? 5 : 0);
+          const power = choosePower(hero.mp);
 
-          hero.state = "attack";
-          hero.timer = ATTACK_TICKS;
-          hero.cooldown = HERO_COOLDOWN;
+          if (power) {
+            const struck = power.aoe ? living : [target];
+            const hits = new Set(struck.map((m) => m.id));
 
-          monsters = monsters.map((m) => {
-            if (m.id !== target.id || m.dead) {
-              return m;
-            }
-            const hp = m.hp - damage;
-            if (hp <= 0) {
-              return { ...m, hp: 0, dead: true, state: "dead", timer: DEATH_TICKS };
-            }
-            return { ...m, hp, state: "hurt", timer: HURT_TICKS };
-          });
+            hero.mp -= power.cost;
+            hero.state = "cast";
+            hero.timer = CAST_TICKS;
+            hero.cooldown = HERO_COOLDOWN + 2;
+            hero.spell = power.key;
 
-          floats = addFloat(
-            floats,
-            tick,
-            crit ? damage + "!" : String(damage),
-            crit ? "#ffd76b" : "#ffffff",
-            target.x
-          );
+            monsters = monsters.map((m) => {
+              if (!hits.has(m.id) || m.dead) {
+                return m;
+              }
+              const damage = rollBetween(power.dmg);
+              const hp = m.hp - damage;
+              floats = addFloat(floats, tick, String(damage), power.color, m.x);
+              if (hp <= 0) {
+                return { ...m, hp: 0, dead: true, state: "dead", timer: DEATH_TICKS };
+              }
+              return { ...m, hp, state: "hurt", timer: HURT_TICKS };
+            });
+
+            floats = addFloat(floats, tick, power.name, power.color, hero.x);
+          } else {
+            const crit = Math.random() < 0.18;
+            const damage = rollBetween([3, 6]) + (crit ? 5 : 0);
+
+            hero.state = "attack";
+            hero.timer = ATTACK_TICKS;
+            hero.cooldown = HERO_COOLDOWN;
+            hero.spell = null;
+
+            monsters = monsters.map((m) => {
+              if (m.id !== target.id || m.dead) {
+                return m;
+              }
+              const hp = m.hp - damage;
+              if (hp <= 0) {
+                return { ...m, hp: 0, dead: true, state: "dead", timer: DEATH_TICKS };
+              }
+              return { ...m, hp, state: "hurt", timer: HURT_TICKS };
+            });
+
+            floats = addFloat(
+              floats,
+              tick,
+              crit ? damage + "!" : String(damage),
+              crit ? "#ffd76b" : "#ffffff",
+              target.x
+            );
+          }
         } else {
           hero.state = "idle";
         }
@@ -293,7 +355,7 @@ export function step(prev) {
 
     if (Math.abs(gap) <= standoff) {
       if (next.cooldown === 0 && Math.abs(gap) <= next.reach + 2) {
-        const damage = rollBetween(next.dmg);
+        const damage = Math.max(1, rollBetween(next.dmg) - HERO_DEFENCE);
         next.state = "attack";
         next.timer = ATTACK_TICKS;
         next.cooldown = next.cd;
@@ -551,7 +613,8 @@ export default function BattleScene() {
       ))}
 
       <span
-        className={"bs-unit bs-unit--hero bs-move-walk is-" + hero.state}
+        className={"bs-unit bs-unit--hero bs-move-walk is-" + hero.state
+          + (hero.state === "cast" && hero.spell ? " spell-" + hero.spell : "")}
         style={{ left: hero.x + "%" }}
       >
         <span className="bs-meters">
