@@ -171,3 +171,13 @@ test('the X hands the cartridge back and the game returns', async () => {
   expect(screen.getByRole('button', { name: /^connect$/i })).toBeInTheDocument();
   expect(container.querySelector('.cart__content').classList.contains('is-solid')).toBe(false);
 });
+
+test('disconnecting says so', async () => {
+  renderConnected();
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /disconnect the cartridge/i }));
+  });
+
+  expect(await screen.findByText(/cartridge disconnected/i)).toBeInTheDocument();
+});

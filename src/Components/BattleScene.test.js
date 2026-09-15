@@ -2,7 +2,8 @@ import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
   MONSTERS, BOSSES, EFFECT_ART, bossChance, bossAllowed, BOSS_COOLDOWN_SCENES,
   GOD_SET, GOD_TOME, godTreasure, hasFullGodSet, describeItem,
-  GOD_SPELL_COST, LEVEL_HP, LEVEL_MP, CARRY_LIMIT, groupInventory, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
+  GOD_SPELL_COST, LEVEL_HP, LEVEL_MP, CARRY_LIMIT, groupInventory,
+  STORM_TICKS, STORM_MAX_HITS, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
   itemScore, worthTaking, recolourKey,
   HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
@@ -1340,4 +1341,129 @@ test('worn gear moves the numbers it promises', () => {
   expect(hero.maxHp).toBe(expectedHp);
   expect(hero.weapon).toBe(expectedAtk);
   expect(hero.speed).toBeGreaterThan(base.speed);
+});
+
+function stormingHero(x = 50) {
+  let hero = gainXp(initialState().hero, XP_PER_LEVEL * 4000);
+  hero = applyPickup(hero, GOD_TOME, () => {});
+  return { ...hero, x, powers: ['godlight'], mp: hero.maxMp, cooldown: 0, state: 'idle' };
+}
+
+test('casting the ceiling spell raises a storm rather than striking once', () => {
+  const base = initialState();
+  const state = {
+    ...base,
+    hero: stormingHero(50),
+    monsters: [monster('skeleton', 54)],
+    drops: [],
+  };
+  const after = withRandom(0.1, () => step(state));
+
+  expect(after.hero.state).toBe('cast');
+  expect(after.storm).not.toBeNull();
+  expect(after.storm.hits).toBe(0);
+  expect(after.hero.mp).toBe(state.hero.maxMp - GOD_SPELL_COST);
+});
+
+test('the storm keeps striking after the cast, on its own rhythm', () => {
+  let s = {
+    ...initialState(),
+    hero: { ...stormingHero(50), cooldown: 999 },
+    monsters: [monster('skeleton', 54, { hp: 9999, maxHp: 9999 })],
+    drops: [],
+    storm: { until: 999, next: 0, hits: 0 },
+  };
+
+  const hitTicks = [];
+  for (let i = 0; i < 12; i++) {
+    const before = s.storm ? s.storm.hits : 0;
+    s = step(s);
+    if (s.storm && s.storm.hits > before) {
+      hitTicks.push(s.tick);
+    }
+  }
+
+  expect(hitTicks.length).toBeGreaterThan(2);
+  // Not every frame: the bolts fall at intervals.
+  expect(hitTicks.length).toBeLessThan(12);
+});
+
+test('the storm blows out after about three seconds', () => {
+  let s = {
+    ...initialState(),
+    hero: { ...stormingHero(50), cooldown: 999 },
+    monsters: [monster('skeleton', 54, { hp: 9999, maxHp: 9999 })],
+    drops: [],
+    storm: { until: 1 + STORM_TICKS, next: 1, hits: 0 },
+  };
+
+  for (let i = 0; i < STORM_TICKS + 4; i++) {
+    s = step(s);
+  }
+
+  expect(s.storm).toBeNull();
+});
+
+test('the storm stops after eight strikes however long it has left', () => {
+  let s = {
+    ...initialState(),
+    hero: { ...stormingHero(50), cooldown: 999 },
+    monsters: [monster('skeleton', 54, { hp: 999999, maxHp: 999999 })],
+    drops: [],
+    storm: { until: 9999, next: 0, hits: 0 },
+  };
+
+  let peak = 0;
+  for (let i = 0; i < 60 && s.storm; i++) {
+    s = step(s);
+    if (s.storm) {
+      peak = Math.max(peak, s.storm.hits);
+    }
+  }
+
+  expect(peak).toBeLessThanOrEqual(STORM_MAX_HITS);
+  expect(s.storm).toBeNull();
+});
+
+test('a monster that wanders in while the storm lasts is struck too', () => {
+  let s = {
+    ...initialState(),
+    hero: { ...stormingHero(50), cooldown: 999 },
+    monsters: [],
+    drops: [],
+    storm: { until: 9999, next: 0, hits: 0 },
+  };
+
+  // Nothing on the field, so the storm waits without spending itself.
+  s = step(s);
+  expect(s.storm.hits).toBe(0);
+
+  // A latecomer arrives and the storm finds it.
+  s = { ...s, monsters: [monster('slime', 60, { hp: 9999, maxHp: 9999 })] };
+  for (let i = 0; i < 6 && s.storm.hits === 0; i++) {
+    s = step(s);
+  }
+
+  expect(s.storm.hits).toBeGreaterThan(0);
+});
+
+test('the storm can clear a whole crowd', () => {
+  const crowd = [];
+  for (let i = 0; i < STORM_MAX_HITS; i++) {
+    crowd.push({ ...monster('slime', 20 + i * 6), id: 200 + i, hp: 1 });
+  }
+
+  let s = {
+    ...initialState(),
+    hero: { ...stormingHero(50), cooldown: 999 },
+    monsters: crowd,
+    drops: [],
+    storm: { until: 9999, next: 0, hits: 0 },
+  };
+
+  for (let i = 0; i < 40 && s.monsters.some((m) => !m.dead); i++) {
+    s = step(s);
+  }
+
+  expect(s.monsters.every((m) => m.dead)).toBe(true);
 });

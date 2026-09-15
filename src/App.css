@@ -1439,9 +1439,15 @@ body {
   width: 26px;
   height: 150px;
   margin-left: -13px;
-  animation: bs-bolt-strike 0.5s steps(4, end) 1 forwards;
+  animation: bs-bolt-strike 0.45s steps(4, end) 1 forwards;
   filter: drop-shadow(0 0 8px #fff6c9);
 }
+
+/* A storm drops several of these across the field; nudging each one keeps them
+   from looking like one bolt repeated. */
+.bs-fx:nth-child(2n) .bs-bolt { transform: scaleX(-1) translateX(3px); }
+.bs-fx:nth-child(3n) .bs-bolt { width: 32px; margin-left: -16px; }
+.bs-fx:nth-child(4n) .bs-bolt { animation-duration: 0.55s; }
 
 .bs-bolt svg { display: block; width: 100%; height: 100%; }
 

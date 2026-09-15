@@ -319,6 +319,18 @@ class GbCartridge extends React.Component {
       deviceInfo: {},
       serialId: null,
     });
+
+    // Said after the state change so it lands on the connect screen, which is
+    // where the container that renders it lives.
+    toast.info("Cartridge disconnected", {
+      position: "top-right",
+      autoClose: 2500,
+      hideProgressBar: true,
+      closeOnClick: true,
+      draggable: false,
+      progress: undefined,
+      theme: "light",
+    });
   }
 
   hideConfirmationModal = () => {

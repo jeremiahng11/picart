@@ -54,6 +54,13 @@ export const HERO_MAX_MP = 12;
 // Both pools grow with him, so the dearest spell comes within reach as he does.
 export const LEVEL_MP = 2;
 export const GOD_SPELL_COST = 40;
+
+// The ceiling spell is a storm rather than a blast: it hangs over the field for
+// about three seconds, striking on its own rhythm, so anything that wanders in
+// while it lasts is struck too.
+export const STORM_TICKS = Math.round(3000 / 165);
+export const STORM_MAX_HITS = 8;
+const STORM_GAP = [1, 3];
 export const HERO_DEFENCE = 1;
 
 const HERO_SPEED = 1.5;
@@ -689,6 +696,7 @@ export function initialState() {
     journey: 0,
     travelling: false,
     lastBossJourney: null,
+    storm: null,
     wavesLeft: rollWaveCount() - 1,
   };
 }
@@ -763,6 +771,7 @@ export function step(prev) {
   let journey = prev.journey || 0;
   let travelling = prev.travelling || false;
   let lastBossJourney = prev.lastBossJourney === undefined ? null : prev.lastBossJourney;
+  let storm = prev.storm || null;
   let wavesLeft = prev.wavesLeft === undefined ? 0 : prev.wavesLeft;
 
   let hero = advance(prev.hero);
@@ -772,6 +781,56 @@ export function step(prev) {
   if (hero.mpTimer >= MP_REGEN_TICKS) {
     hero.mpTimer = 0;
     hero.mp = Math.min(hero.maxMp, hero.mp + 1);
+  }
+
+  if (storm) {
+    const spent = storm.hits >= STORM_MAX_HITS;
+    const over = tick > storm.until;
+
+    if (spent || over) {
+      storm = null;
+    } else if (tick >= storm.next) {
+      const standing = monsters.filter((m) => !m.dead);
+
+      if (standing.length) {
+        const struck = standing[Math.floor(Math.random() * standing.length)];
+        const power = POWERS.find((p) => p.key === "godlight");
+        const damage = rollBetween(power.dmg);
+
+        effects = addEffect(effects, tick, "godlight", struck.x);
+        floats = addFloat(floats, tick, String(damage), power.color, struck.x);
+
+        let earned = 0;
+        monsters = monsters.map((m) => {
+          if (m.id !== struck.id || m.dead) {
+            return m;
+          }
+          const hp = m.hp - damage;
+          if (hp <= 0) {
+            earned += m.maxHp;
+            return { ...m, hp: 0, dead: true, state: "dead", timer: DEATH_TICKS };
+          }
+          return { ...m, hp, state: "hurt", timer: HURT_TICKS };
+        });
+
+        if (earned > 0) {
+          const before = hero.level;
+          hero = gainXp(hero, earned);
+          if (hero.level > before) {
+            floats = addFloat(floats, tick, "LEVEL " + hero.level, "#8affc1", hero.x);
+          }
+        }
+
+        storm = {
+          ...storm,
+          hits: storm.hits + 1,
+          next: tick + STORM_GAP[0] + Math.floor(Math.random() * (STORM_GAP[1] - STORM_GAP[0] + 1)),
+        };
+      } else {
+        // Nothing to strike this instant, but the storm has not blown out.
+        storm = { ...storm, next: tick + 1 };
+      }
+    }
   }
 
   const threat = prev.monsters
@@ -802,6 +861,7 @@ export function step(prev) {
       journey,
       travelling: false,
       lastBossJourney,
+      storm: null,
       wavesLeft: rollWaveCount() - 1,
       hero: {
         ...hero,
@@ -942,7 +1002,7 @@ export function step(prev) {
       waveGap = 0;
     }
 
-    return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft, lastBossJourney };
+    return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft, lastBossJourney, storm };
   }
 
   // Hero: fetch loot when the field allows it, otherwise close on the nearest
@@ -991,6 +1051,19 @@ export function step(prev) {
       if (Math.abs(gap) <= HERO_REACH) {
         if (hero.cooldown === 0) {
           const power = choosePower(hero.powers, hero.mp);
+
+          if (power && power.key === "godlight") {
+            hero.mp -= power.cost;
+            hero.state = "cast";
+            hero.timer = CAST_TICKS;
+            hero.cooldown = HERO_COOLDOWN + 2;
+            hero.spell = power.key;
+
+            storm = { until: tick + STORM_TICKS, next: tick, hits: 0 };
+            floats = addFloat(floats, tick, power.name, power.color, hero.x);
+
+            return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft, lastBossJourney, storm };
+          }
 
           if (power) {
             const struck = power.aoe ? living : [target];
@@ -1204,7 +1277,7 @@ export function step(prev) {
     drops = kept.concat(spilled);
   }
 
-  return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft, lastBossJourney };
+  return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling, wavesLeft, lastBossJourney, storm };
 }
 
 function prefersReducedMotion() {
