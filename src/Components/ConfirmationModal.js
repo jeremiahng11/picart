@@ -18,7 +18,7 @@
 import React from 'react'
 import { Modal, Button } from "react-bootstrap";
 
-const ConfirmationModal = ({ showModal, hideModal, confirmModal, id, type, title, message }) => {
+const ConfirmationModal = ({ showModal, hideModal, confirmModal, id, title, message }) => {
     return (
         <Modal show={showModal} onHide={hideModal}>
         <Modal.Header closeButton>
@@ -29,7 +29,7 @@ const ConfirmationModal = ({ showModal, hideModal, confirmModal, id, type, title
           <Button variant="default" onClick={hideModal}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={() => confirmModal(type, id) }>
+          <Button variant="danger" onClick={() => confirmModal(id) }>
             Continue
           </Button>
         </Modal.Footer>

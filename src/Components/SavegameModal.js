@@ -34,12 +34,6 @@ const CHUNK_SIZE = 32;
 const RTC_SAVE_SIZE = 48;
 
 class SavegameModal extends React.Component {
-    show = this.props.show;
-    onHide = this.props.onHide;
-    onError = this.props.onError;
-    comm = this.props.comm;
-    romInfo = this.props.romInfo;
-
     state = {
         showConfirmationModal: false,
         confirmationMessage: null,
@@ -65,7 +59,7 @@ class SavegameModal extends React.Component {
         this.setState({ showConfirmationModal: true });
     }
 
-    uploadRam = async (type, id) => {
+    uploadRam = async () => {
         var bytesTransferred = 0;
 
         this.setState({ showConfirmationModal: false });
@@ -73,7 +67,7 @@ class SavegameModal extends React.Component {
         console.log("Starting upload of " + this.props.romInfo.numRamBanks + "banks (" + this.saveGameSize + " Bytes)");
 
         try {
-            await this.comm.requestSaveGameUploadCommand(this.props.romInfo.romId);
+            await this.props.comm.requestSaveGameUploadCommand(this.props.romInfo.romId);
 
             console.log("Upload was accepted");
 
@@ -83,7 +77,7 @@ class SavegameModal extends React.Component {
                 var bank = Math.floor(bytesTransferred / BANK_SIZE);
                 var chunk = (bytesTransferred - (bank * BANK_SIZE)) / CHUNK_SIZE;
 
-                await this.comm.sendSavegameChunkCommand(bank, chunk, this.saveGameArray.subarray((bank * BANK_SIZE) + (chunk * CHUNK_SIZE), (bank * BANK_SIZE) + ((chunk + 1) * CHUNK_SIZE)));
+                await this.props.comm.sendSavegameChunkCommand(bank, chunk, this.saveGameArray.subarray((bank * BANK_SIZE) + (chunk * CHUNK_SIZE), (bank * BANK_SIZE) + ((chunk + 1) * CHUNK_SIZE)));
                 console.log(" Send bank " + bank + " chunk " + chunk);
 
                 bytesTransferred += CHUNK_SIZE;
@@ -93,7 +87,7 @@ class SavegameModal extends React.Component {
             console.log("Savegame Upload was finished");
         }
         catch (e) {
-            this.onError("Uploading the savegame failed");
+            this.props.onError("Uploading the savegame failed");
             this.setState({ uploadInProgress: false });
 
             console.log("Uploading the savegame failed: " + e);
@@ -114,10 +108,10 @@ class SavegameModal extends React.Component {
                 view.setBigUint64(40, BigInt(localTimeStamp), true);
 
                 console.log("Sending RTC data");
-                await this.comm.sendRtcDataCommand(this.props.romInfo.romId, rtcData);
+                await this.props.comm.sendRtcDataCommand(this.props.romInfo.romId, rtcData);
             }
             catch (e) {
-                this.onError("Uploading the RTC data failed");
+                this.props.onError("Uploading the RTC data failed");
                 console.log("Uploading the RTC data failed: " + e);
             }
         }
@@ -133,7 +127,7 @@ class SavegameModal extends React.Component {
 
         console.log("Trying to get RTC...");
         try {
-            rtcData = await this.comm.fetchRtcDataCommand(this.props.romInfo.romId);
+            rtcData = await this.props.comm.fetchRtcDataCommand(this.props.romInfo.romId);
             hasRtcData = true;
         }
         catch (e) {
@@ -143,7 +137,7 @@ class SavegameModal extends React.Component {
         console.log("Starting download of " + this.props.romInfo.numRamBanks + "banks (" + bytesToTransfer + " Bytes)");
 
         try {
-            await this.comm.requestSaveGameDownloadCommand(this.props.romInfo.romId);
+            await this.props.comm.requestSaveGameDownloadCommand(this.props.romInfo.romId);
 
             console.log("Download was accepted");
 
@@ -157,7 +151,7 @@ class SavegameModal extends React.Component {
 
                 console.log("Expecting bank " + bank + " chunk " + chunk + " bytesTransferred " + bytesTransferred);
 
-                var res = await this.comm.receiveSavegameChunkCommand();
+                var res = await this.props.comm.receiveSavegameChunkCommand();
                 console.log("Received bank " + res.bank + " chunk " + res.chunk);
 
                 // Checked before the data is stored, so a mismatched chunk is
@@ -188,7 +182,7 @@ class SavegameModal extends React.Component {
                 view.setBigUint64(40, BigInt(utcTimeStamp), true);
 
                 saveGameBuffer.set(rtcData, bytesToTransfer);
-                console.log("Concatinated rtcData");
+                console.log("Concatenated rtcData");
             }
 
             download(saveGameBuffer, this.props.romInfo.name + ".sav", "octet-stream");
@@ -196,7 +190,7 @@ class SavegameModal extends React.Component {
             this.setState({ downloadInProgress: false });
         }
         catch (e) {
-            this.onError("Downloading the savegame failed");
+            this.props.onError("Downloading the savegame failed");
             this.setState({ downloadInProgress: false });
 
             console.log("Downloading the savegame failed: " + e);
@@ -247,7 +241,7 @@ class SavegameModal extends React.Component {
             return (
                 <Modal
                     show={this.props.show}
-                    onHide={this.onHide}
+                    onHide={this.props.onHide}
                     onEnter={() => this.onEnterHandler()}
                     size="lg"
                     aria-labelledby="contained-modal-title-vcenter"
@@ -277,12 +271,14 @@ class SavegameModal extends React.Component {
                     <Modal.Footer>
                         <Button onClick={() => this.savegameUploadButtonHandler()} disabled={!this.state.validSavegameLoaded || this.state.downloadInProgress || this.state.uploadInProgress}>Upload Savegame RAM</Button>
                         <Button onClick={() => this.savegameDownloadButtonHandler()} disabled={this.state.downloadInProgress || this.state.uploadInProgress}>Download Savegame RAM</Button>
-                        <Button onClick={this.onHide} disabled={this.state.downloadInProgress || this.state.uploadInProgress}>Close</Button>
+                        <Button onClick={this.props.onHide} disabled={this.state.downloadInProgress || this.state.uploadInProgress}>Close</Button>
                         <ConfirmationModal showModal={this.state.showConfirmationModal} confirmModal={this.uploadRam} hideModal={() => { this.setState({ showConfirmationModal: false }); }} title="Upload confirmation" id={this.state.confirmationId} message={this.state.confirmationMessage} />
                     </Modal.Footer>
                 </Modal>
             );
         }
+
+        return null;
     }
 };
 

@@ -31,19 +31,17 @@ function createWindow() {
 
   let grantedDeviceThroughPermHandler
 
+  // Registered once. Attaching these inside the select-usb-device handler added
+  // a new pair of listeners on every device request.
+  mainWindow.webContents.session.on('usb-device-added', (event, device) => {
+    console.log('usb-device-added FIRED WITH', device)
+  })
+
+  mainWindow.webContents.session.on('usb-device-removed', (event, device) => {
+    console.log('usb-device-removed FIRED WITH', device)
+  })
+
   mainWindow.webContents.session.on('select-usb-device', (event, details, callback) => {
-    // Add events to handle devices being added or removed before the callback on
-    // `select-usb-device` is called.
-    mainWindow.webContents.session.on('usb-device-added', (event, device) => {
-      console.log('usb-device-added FIRED WITH', device)
-      // Optionally update details.deviceList
-    })
-
-    mainWindow.webContents.session.on('usb-device-removed', (event, device) => {
-      console.log('usb-device-removed FIRED WITH', device)
-      // Optionally update details.deviceList
-    })
-
     event.preventDefault()
 
     // The callback must be invoked on every path, or navigator.usb.requestDevice()

@@ -31,6 +31,17 @@ import './App.css';
 // filename; a CDN in front of the app cannot then serve a stale logo.
 import jklLogo from './assets/jkl_small.png';
 
+const MinimumFirmwareVersion = [0, 5, 2];
+
+function compareVersion(a, b) {
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return a[i] < b[i] ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
 function isElectron() {
   // Renderer process
   if (typeof window !== 'undefined' && typeof window.process === 'object' && window.process.type === 'renderer') {
@@ -66,7 +77,7 @@ class GbCartridge extends React.Component {
     openAddRomModal: false,
     deviceInfo: {},
     serialId: null,
-    romUtiliuation: { numRoms: 0, usedBanks: 0, maxBanks: 0 },
+    romUtilization: { numRoms: 0, usedBanks: 0, maxBanks: 0 },
     romInfos: [],
     confirmationMessage: null,
     confirmationId: 0,
@@ -76,7 +87,33 @@ class GbCartridge extends React.Component {
     activeRomListInfo: null
   }
 
-  NewFirmwareNotifcation = () => {
+  componentDidMount() {
+    if (navigator.usb) {
+      navigator.usb.addEventListener('disconnect', this.handleUsbDisconnect);
+    }
+  }
+
+  componentWillUnmount() {
+    if (navigator.usb) {
+      navigator.usb.removeEventListener('disconnect', this.handleUsbDisconnect);
+    }
+  }
+
+  // Unplugging the cartridge previously left the UI in its connected state with
+  // every subsequent command failing and no way back.
+  handleUsbDisconnect = (event) => {
+    if (!this.comm || event.device !== this.comm.device) {
+      return;
+    }
+
+    console.log("Cartridge was disconnected");
+    this.comm.close();
+    this.comm = null;
+    this.setState({ state: this.StateConnect });
+    this.displayError("The cartridge was disconnected");
+  }
+
+  NewFirmwareNotification = () => {
     return (
       <div>
         New Firmware available.<br />
@@ -110,22 +147,13 @@ class GbCartridge extends React.Component {
     var deviceInfo = await this.comm.readDeviceInfoCommand();
     this.setState({ deviceInfo: deviceInfo });
 
-    if (deviceInfo.swVersion.minor < 5) {
+    // Compared as a whole tuple. Testing minor alone reported firmware 1.0.0 as
+    // out of date.
+    if (compareVersion(
+      [deviceInfo.swVersion.major, deviceInfo.swVersion.minor, deviceInfo.swVersion.patch],
+      MinimumFirmwareVersion) < 0) {
       setTimeout(() => {
-        toast.info(this.NewFirmwareNotifcation, {
-          position: "top-right",
-          autoClose: 0,
-          hideProgressBar: true,
-          closeOnClick: true,
-          draggable: false,
-          progress: undefined,
-          theme: "light",
-        });
-      }, 1000);
-    }
-    else if ((deviceInfo.swVersion.minor === 5) && (deviceInfo.swVersion.patch < 2)) {
-      setTimeout(() => {
-        toast.info(this.NewFirmwareNotifcation, {
+        toast.info(this.NewFirmwareNotification, {
           position: "top-right",
           autoClose: 0,
           hideProgressBar: true,
@@ -138,9 +166,9 @@ class GbCartridge extends React.Component {
     }
 
     if (deviceInfo.featureStep > 4) {
-      console.log("The cartridge firmware might be to new! (featureStep = " + deviceInfo.featureStep);
+      console.log("The cartridge firmware might be too new! (featureStep = " + deviceInfo.featureStep);
       setTimeout(() => {
-        toast.warning("The cartridge firmware might be to new!", {
+        toast.warning("The cartridge firmware might be too new!", {
           position: "top-right",
           autoClose: 0,
           hideProgressBar: true,
@@ -167,33 +195,35 @@ class GbCartridge extends React.Component {
   async readRomUtilization() {
     console.log("Reading ROM utilization...");
 
-    var romUtiliuation;
+    var romUtilization;
     try {
-      romUtiliuation = await this.comm.readRomUtilizationCommand();
+      romUtilization = await this.comm.readRomUtilizationCommand();
     }
     catch (e) {
       // Without this the rejection is unhandled and the app is stuck on
       // "Downloading Info..." with nothing shown to the user.
       console.log("Error reading rom utilization: " + e);
+      await this.comm.close();
+      this.comm = null;
       this.displayError("Could not read the cartridge. Please reconnect and try again.");
       this.setState({ state: this.StateConnect });
       return;
     }
 
-    console.log("num Roms: " + romUtiliuation.numRoms);
-    console.log("used banks: " + romUtiliuation.usedBanks);
+    console.log("num Roms: " + romUtilization.numRoms);
+    console.log("used banks: " + romUtilization.usedBanks);
 
     var romInfos = [];
 
     try {
-      for (var rom = 0; rom < romUtiliuation.numRoms; rom++) {
+      for (var rom = 0; rom < romUtilization.numRoms; rom++) {
         var romInfo = await this.comm.readRomInfoCommand(rom);
         console.log("Rom " + rom + ": " + romInfo.name);
         romInfos.push(romInfo);
       }
     }
     catch (e) {
-      console.log("Error reding rominfo: " + e);
+      console.log("Error reading rominfo: " + e);
       toast.error("There was an error reading the rom info. Maybe the firmware of the cartridge is too new?", {
         position: "top-right",
         autoClose: false,
@@ -205,11 +235,11 @@ class GbCartridge extends React.Component {
       });
     }
 
-    this.setState({ state: this.StateConnected, romUtiliuation: romUtiliuation, romInfos: romInfos });
+    this.setState({ state: this.StateConnected, romUtilization: romUtilization, romInfos: romInfos });
   }
 
   showDeleteConfirmationModal = (e) => {
-    const id = e.currentTarget.dataset.index;
+    const id = Number(e.currentTarget.dataset.index);
 
     this.setState({ confirmationId: id, confirmationMessage: `Are you sure you want to delete '${this.state.romInfos[id].name}' and it's savegame?` });
 
@@ -217,12 +247,12 @@ class GbCartridge extends React.Component {
   };
 
   openSaveGameModal = (e) => {
-    const id = e.currentTarget.dataset.index;
+    const id = Number(e.currentTarget.dataset.index);
 
     this.setState({ showSavegameModal: true, activeRomListInfo: this.state.romInfos[id] });
   };
 
-  deleteRom = async (type, id) => {
+  deleteRom = async (id) => {
     console.log("Deleting ROM " + id + " " + this.state.romInfos[id]);
 
     try {
@@ -317,7 +347,7 @@ class GbCartridge extends React.Component {
               ))}
             </ListGroup>
             <hr />
-            <ProgressBar now={this.state.romUtiliuation.usedBanks} max={this.state.romUtiliuation.maxBanks} label={`${this.state.romUtiliuation.usedBanks} banks used (${this.state.romUtiliuation.maxBanks - this.state.romUtiliuation.usedBanks} free)`} /> <br />
+            <ProgressBar now={this.state.romUtilization.usedBanks} max={this.state.romUtilization.maxBanks} label={`${this.state.romUtilization.usedBanks} banks used (${this.state.romUtilization.maxBanks - this.state.romUtilization.usedBanks} free)`} /> <br />
             <Button onClick={(e) => { this.setState({ openAddRomModal: true }); }} className="btn btn-lg btn-secondary">Add ROM</Button>
             <hr />
             JKL Cartridge FW {this.state.deviceInfo.swVersion.major}.{this.state.deviceInfo.swVersion.minor}.{this.state.deviceInfo.swVersion.patch} {this.state.deviceInfo.swVersion.buildType}.
@@ -325,7 +355,7 @@ class GbCartridge extends React.Component {
             {(this.state.deviceInfo.swVersion.gitDirty) && "(dirty)"}
             {(this.state.serialId) && " Serial " + this.state.serialId}
             <hr />
-            <AddNewRomModal show={this.state.openAddRomModal} onHide={() => { this.setState({ openAddRomModal: false }); }} onRomAdded={this.refreshDeviceStatus} onError={this.displayError} comm={this.comm} availableBanks={this.state.romUtiliuation.maxBanks - this.state.romUtiliuation.usedBanks} />
+            <AddNewRomModal show={this.state.openAddRomModal} onHide={() => { this.setState({ openAddRomModal: false }); }} onRomAdded={this.refreshDeviceStatus} onError={this.displayError} comm={this.comm} availableBanks={this.state.romUtilization.maxBanks - this.state.romUtilization.usedBanks} />
             <ConfirmationModal showModal={this.state.showConfirmationModal} confirmModal={this.deleteRom} hideModal={this.hideConfirmationModal} title="Delete confirmation" id={this.state.confirmationId} message={this.state.confirmationMessage} />
             <SavegameModal show={this.state.showSavegameModal} onHide={() => { this.setState({ showSavegameModal: false }); }} onError={this.displayError} comm={this.comm} romInfo={this.state.activeRomListInfo} />
           </div>

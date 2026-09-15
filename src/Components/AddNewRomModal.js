@@ -27,14 +27,11 @@ const BANK_SIZE = 0x4000;
 const CHUNK_SIZE = 32;
 const CHUNKS_PER_BANK = BANK_SIZE / CHUNK_SIZE;
 
-class AddNewRomModal extends React.Component {
-    show = this.props.show;
-    onHide = this.props.onHide;
-    onRomAdded = this.props.onRomAdded;
-    onError = this.props.onError;
-    comm = this.props.comm;
-    availableBanks = this.props.availableBanks;
+// The cartridge stores the name in a 17 byte field and expects it to be NUL
+// terminated, so at most 16 bytes of it are usable.
+const MAX_NAME_BYTES = 16;
 
+class AddNewRomModal extends React.Component {
     state = {
         validRomLoaded: false,
         romInfo: { banks: 0, name: "", speedchangeBank: 0xFFFF },
@@ -46,7 +43,13 @@ class AddNewRomModal extends React.Component {
     rom;
 
     onEnterHandler() {
-        this.setState({ validRomLoaded: false });
+        // Cleared as well as invalidated, so reopening does not show the name
+        // and bank count of the previously selected ROM.
+        this.rom = undefined;
+        this.setState({
+            validRomLoaded: false,
+            romInfo: { banks: 0, name: "", speedchangeBank: 0xFFFF }
+        });
     }
 
     fileChangedHandler(e) {
@@ -62,7 +65,32 @@ class AddNewRomModal extends React.Component {
         reader.onload = (e) => {
             this.rom = new Uint8Array(e.target.result);
             console.log("ROM is " + this.rom.byteLength + "bytes long");
-            var banks = 1 << (this.rom[0x0148] + 1);
+
+            // Without these checks a file that is not a ROM, or is truncated, is
+            // read past its end and uploaded to the cartridge as zero-filled
+            // banks with no warning.
+            if (this.rom.byteLength < 0x150) {
+                this.setState({ validRomLoaded: false });
+                this.props.onError("That file is too small to be a Game Boy ROM");
+                return;
+            }
+
+            var sizeCode = this.rom[0x0148];
+            if (sizeCode > 8) {
+                this.setState({ validRomLoaded: false });
+                this.props.onError("Unsupported ROM size code 0x" + sizeCode.toString(16));
+                return;
+            }
+
+            var banks = 1 << (sizeCode + 1);
+
+            if (this.rom.byteLength !== banks * BANK_SIZE) {
+                this.setState({ validRomLoaded: false });
+                this.props.onError("ROM is " + this.rom.byteLength + " bytes but its header declares "
+                    + (banks * BANK_SIZE) + ". It looks truncated or padded.");
+                return;
+            }
+
             var nameArray = this.rom.subarray(0x134, 0x134 + 16);
             var isCgbGame = this.rom[0x143] === 0xC0 || (this.rom[0x143] === 0x80);
             var zero = nameArray.findIndex((element, index, array) => { return element === 0; })
@@ -75,9 +103,9 @@ class AddNewRomModal extends React.Component {
             console.log("ROM has " + banks + " banks");
             console.log("ROM name is " + name);
             console.log("ROM is a CGB game: " + isCgbGame);
-            console.log("Available banks: " + this.availableBanks);
+            console.log("Available banks: " + this.props.availableBanks);
 
-            if (this.availableBanks >= banks) {
+            if (this.props.availableBanks >= banks) {
                 var speedchangeBank = 0xffff;
                 if (isCgbGame) {
                     var speedchangeState = 0;
@@ -140,7 +168,7 @@ class AddNewRomModal extends React.Component {
                     romInfo: { banks: banks, name: name }
                 });
 
-                this.onError("Not enough free banks available on cart for this ROM");
+                this.props.onError("Not enough free banks available on cart for this ROM");
             }
         };
         reader.readAsArrayBuffer(fileObj);
@@ -148,7 +176,16 @@ class AddNewRomModal extends React.Component {
 
     async romUploadButtonHandler() {
         if (this.state.romInfo.name === "") {
-            this.onError("ROM name must not be empty!");
+            this.props.onError("ROM name must not be empty!");
+            return;
+        }
+
+        // The input caps length in characters, not bytes. Anything outside ASCII
+        // encodes to more than one byte and would overflow the payload field.
+        const nameBytes = new TextEncoder().encode(this.state.romInfo.name).length;
+        if (nameBytes > MAX_NAME_BYTES) {
+            this.props.onError("ROM name uses " + nameBytes + " bytes but only "
+                + MAX_NAME_BYTES + " fit. Accented and non-Latin characters take more than one byte each.");
             return;
         }
 
@@ -156,7 +193,7 @@ class AddNewRomModal extends React.Component {
 
         this.setState({ uploadInProgress: true, uploadRequestInProgress: true, uploadedBank: this.state.romInfo.banks });
         try {
-            await this.comm.requestRomUploadCommand(this.state.romInfo.banks, this.state.romInfo.name, this.state.romInfo.speedchangeBank);
+            await this.props.comm.requestRomUploadCommand(this.state.romInfo.banks, this.state.romInfo.name, this.state.romInfo.speedchangeBank);
 
 
             console.log("Upload was accepted");
@@ -165,7 +202,7 @@ class AddNewRomModal extends React.Component {
 
             for (var bank = 0; bank < this.state.romInfo.banks; bank++) {
                 for (var chunk = 0; chunk < CHUNKS_PER_BANK; chunk++) {
-                    await this.comm.sendRomChunkCommand(bank, chunk, this.rom.subarray((bank * BANK_SIZE) + (chunk * CHUNK_SIZE), (bank * BANK_SIZE) + ((chunk + 1) * CHUNK_SIZE)));
+                    await this.props.comm.sendRomChunkCommand(bank, chunk, this.rom.subarray((bank * BANK_SIZE) + (chunk * CHUNK_SIZE), (bank * BANK_SIZE) + ((chunk + 1) * CHUNK_SIZE)));
                     console.log("Bank " + bank + " chunk " + chunk);
                 }
                 this.setState({ uploadedBank: bank });
@@ -174,9 +211,9 @@ class AddNewRomModal extends React.Component {
             console.log("Upload finished");
             this.setState({ uploadInProgress: false });
 
-            this.onRomAdded();
+            this.props.onRomAdded();
         } catch (e) {
-            this.onError("Uploading the ROM failed");
+            this.props.onError("Uploading the ROM failed");
             this.setState({ uploadInProgress: false });
         }
     }
@@ -185,7 +222,7 @@ class AddNewRomModal extends React.Component {
         return (
             <Modal
                 show={this.props.show}
-                onHide={this.onHide}
+                onHide={this.props.onHide}
                 onEnter={() => this.onEnterHandler()}
                 backdrop={this.state.uploadInProgress ? "static" : "dynamic"}
                 size="lg"
@@ -218,7 +255,7 @@ class AddNewRomModal extends React.Component {
                     {this.state.uploadInProgress && <ProgressBar animated={this.state.uploadRequestInProgress} now={this.state.uploadedBank} max={this.state.romInfo.banks} />}
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button onClick={this.onHide} disabled={this.state.uploadInProgress}>Close</Button>
+                    <Button onClick={this.props.onHide} disabled={this.state.uploadInProgress}>Close</Button>
                     <Button onClick={() => this.romUploadButtonHandler()} disabled={!this.state.validRomLoaded || this.state.uploadInProgress}>Upload</Button>
                 </Modal.Footer>
 

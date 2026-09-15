@@ -36,6 +36,16 @@ docker compose up --build    # http://localhost:8080
 
 Both URLs are `localhost`, so WebUSB works without TLS.
 
+## Tests
+
+```bash
+npm run react-test -- --watchAll=false
+```
+
+`stringview` ships ESM only, which Jest does not transform inside `node_modules`
+by default. The `jest.transformIgnorePatterns` override in `package.json` exempts
+it; without that, any suite importing the device layer fails at import.
+
 ## Desktop (Electron)
 
 The Electron shell bypasses the browser permission prompt by matching the USB
@@ -63,10 +73,18 @@ use `npm run react-build` alone; the provided `Dockerfile` already does this.
 4. Attach a domain and enable SSL. Coolify provisions a Let's Encrypt
    certificate via its proxy — this is **required**, not optional, because
    WebUSB refuses to run over plain HTTP.
-5. Deploy. Health check endpoint is `GET /healthz`.
+5. Under **Environment Variables**, add `APP_VERSION` with the value
+   `$SOURCE_COMMIT` and mark it as a **build variable**. The React bundle is
+   compiled during `docker build`, so a runtime-only variable arrives too late
+   and the UI falls back to showing `dev`.
+6. Deploy. Health check endpoint is `GET /healthz`.
 
 The build is domain-agnostic: `homepage` resolves to a public path of `/`, so
 assets are root-relative and no rebuild is needed when the domain changes.
+
+`nginx.conf` returns a real 404 for unknown paths rather than falling back to
+`index.html`. This app has no client-side router, so a fallback would only serve
+the page with a 200 status for missing assets and hide broken links.
 
 ## Environment variables
 

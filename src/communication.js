@@ -19,17 +19,9 @@ import StringView from "stringview"
 
 class Communication {
     constructor() {
-        this.buffer = [];
-        this.send_active = false;
         this.featureStep = 0;
         this.supportsSpeedChangeBankInfo = false;
         this.supportsMbcInfo = false;
-    }
-
-    static getPorts() {
-        return navigator.usb.getDevices().then(devices => {
-            return devices;
-        });
     }
 
     static requestPort() {
@@ -122,9 +114,12 @@ class Communication {
                 buffer.resize(payload.byteLength + 1);
                 requestData.set(payload, 1);
             }
-            this.send(requestData);
-
-            this.read(readBytes + 1).then(result => {
+            // Awaited before reading, so a failed transfer rejects this command
+            // rather than escaping as an unhandled rejection and leaving the
+            // read to time out with a misleading error.
+            this.send(requestData).then(() => {
+                return this.read(readBytes + 1);
+            }).then(result => {
                 if (result.status !== "ok") {
                     console.log("Transfer error status=" + result.status);
                     reject("Error reading from device status=" + result.status);
@@ -165,6 +160,32 @@ class Communication {
         var view = new Uint8Array(buffer);
         view.set(data, 0);
         return this.device.transferOut(this.epOut, buffer);
+    }
+
+    // Releases the USB device. Safe to call more than once, and on a device
+    // that has already gone away, so it can be used from a disconnect handler.
+    async close() {
+        const device = this.device;
+        this.device = null;
+        this.ready = false;
+
+        if (!device) {
+            return;
+        }
+
+        try {
+            await device.releaseInterface(this.ifNum);
+        }
+        catch (e) {
+            console.log("Releasing the interface failed: " + e);
+        }
+
+        try {
+            await device.close();
+        }
+        catch (e) {
+            console.log("Closing the device failed: " + e);
+        }
     }
 
     readDeviceInfoCommand() {
@@ -272,6 +293,7 @@ class Communication {
                 if (data[0] !== 0) {
                     console.log("requestRomUploadCommand rejected with code " + data[0]);
                     reject("Rom not accepted");
+                    return;
                 }
 
                 resolve();
@@ -295,6 +317,7 @@ class Communication {
                 if (data[0] !== 0) {
                     console.log("sendRomChunkCommand rejected with code " + data[0]);
                     reject("Rom chunk not accepted");
+                    return;
                 }
 
                 resolve();
@@ -350,6 +373,7 @@ class Communication {
                 if (data[0] !== 0) {
                     console.log("deleteRomCommand rejected with code " + data[0]);
                     reject("Delete failed");
+                    return;
                 }
 
                 resolve();
@@ -371,6 +395,7 @@ class Communication {
                 if (data[0] !== 0) {
                     console.log("requestSaveGameCommand rejected with code " + data[0]);
                     reject("Request Savegame failed");
+                    return;
                 }
 
                 resolve();
@@ -412,6 +437,7 @@ class Communication {
                 if (data[0] !== 0) {
                     console.log("requestSaveGameUploadCommand rejected with code " + data[0]);
                     reject("Savegame not accepted");
+                    return;
                 }
 
                 resolve();
@@ -435,6 +461,7 @@ class Communication {
                 if (data[0] !== 0) {
                     console.log("sendSavegameChunkCommand rejected with code " + data[0]);
                     reject("RAM chunk not accepted");
+                    return;
                 }
 
                 resolve();
@@ -457,6 +484,7 @@ class Communication {
                 if (data[0] !== romId) {
                     console.log("fetchRtcDataCommand rejected with code " + data[0]);
                     reject("RTC data could not be fetched");
+                    return;
                 }
 
                 resolve(data.slice(1));
@@ -480,6 +508,7 @@ class Communication {
                 if (data[0] !== romId) {
                     console.log("sendRtcDataCommand rejected with code " + data[0]);
                     reject("RTC data could not be send");
+                    return;
                 }
 
                 resolve(data.subarray(1, 49));
