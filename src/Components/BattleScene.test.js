@@ -2,7 +2,7 @@ import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
   MONSTERS, BOSSES, EFFECT_ART, bossChance, bossAllowed, BOSS_COOLDOWN_SCENES,
   GOD_SET, GOD_TOME, godTreasure, hasFullGodSet, describeItem,
-  GOD_SPELL_COST, LEVEL_HP, LEVEL_MP, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
+  GOD_SPELL_COST, LEVEL_HP, LEVEL_MP, CARRY_LIMIT, groupInventory, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
   itemScore, worthTaking, recolourKey,
   HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
@@ -313,13 +313,39 @@ test('the hero sets out knowing one spell and can learn the rest', () => {
   const tomes = SPECIAL_ITEMS.filter((i) => i.type === 'spell').concat(GOD_TOME);
   expect(tomes).toHaveLength(POWERS.length - 1);
 
-  let hero = { ...initialState().hero };
-  expect(hero.powers).toHaveLength(1);
+  // Deep enough in the pool to cast anything, so every book is read at once.
+  let hero = gainXp({ ...initialState().hero }, XP_PER_LEVEL * 4000);
+  expect(hero.maxMp).toBeGreaterThanOrEqual(GOD_SPELL_COST);
 
   for (const tome of tomes) {
     hero = applyPickup(hero, tome, () => {});
   }
   expect(hero.powers).toHaveLength(POWERS.length);
+});
+
+test('a book beyond his pool is kept unread until it is not', () => {
+  const fresh = initialState().hero;
+  expect(fresh.maxMp).toBeLessThan(GOD_SPELL_COST);
+
+  const carrying = applyPickup(fresh, GOD_TOME, () => {});
+  expect(carrying.powers).not.toContain('godlight');
+  expect(carrying.inventory.some((i) => i.key === GOD_TOME.key)).toBe(true);
+
+  const grown = gainXp(carrying, XP_PER_LEVEL * 4000);
+  expect(grown.powers).toContain('godlight');
+  expect(grown.inventory.some((i) => i.key === GOD_TOME.key)).toBe(false);
+});
+
+test('god gold can deepen the pool enough to read the book', () => {
+  let hero = applyPickup(initialState().hero, GOD_TOME, () => {});
+  expect(hero.powers).not.toContain('godlight');
+
+  for (const piece of GOD_SET) {
+    hero = applyPickup(hero, piece, () => {});
+  }
+
+  expect(hero.maxMp).toBeGreaterThanOrEqual(GOD_SPELL_COST);
+  expect(hero.powers).toContain('godlight');
 });
 
 test('the hero sets out in clothes with a worn sword and no shield', () => {
@@ -360,8 +386,9 @@ test('the hero sometimes swings instead of casting', () => {
 });
 
 test('a spell he has not learned is never cast', () => {
-  expect(choosePower(BASE_POWERS, HERO_MAX_MP, 0).key).not.toBe('judge');
-  expect(choosePower(BASE_POWERS.concat('judge'), HERO_MAX_MP, 0).key).toBe('judge');
+  const judge = POWERS.find((p) => p.key === 'judge');
+  expect(choosePower(BASE_POWERS, judge.cost, 0).key).not.toBe('judge');
+  expect(choosePower(BASE_POWERS.concat('judge'), judge.cost, 0).key).toBe('judge');
 });
 
 test('casting spends the mana it costs', () => {
@@ -496,8 +523,11 @@ test('potions are taken when needed and only stockpiled so far', () => {
 
   expect(worthTaking({ ...base, hp: 5 }, potion)).toBe(true);
 
-  const full = { ...base, inventory: [potion, potion, potion] };
+  const full = { ...base, inventory: new Array(CARRY_LIMIT).fill(potion) };
   expect(worthTaking(full, potion)).toBe(false);
+
+  const nearlyFull = { ...base, inventory: new Array(CARRY_LIMIT - 1).fill(potion) };
+  expect(worthTaking(nearlyFull, potion)).toBe(true);
 });
 
 test('junk left on the ground does not pin him to the scene', () => {
@@ -1233,8 +1263,8 @@ test('the ceiling spell is learned from a book, not worn', () => {
   expect(GOD_TOME.type).toBe('spell');
   expect(GOD_SET.some((g) => g.type === 'spell')).toBe(false);
 
-  const hero = applyPickup(initialState().hero, GOD_TOME, () => {});
-  expect(hero.powers).toContain('godlight');
+  const deep = gainXp(initialState().hero, XP_PER_LEVEL * 4000);
+  expect(applyPickup(deep, GOD_TOME, () => {}).powers).toContain('godlight');
 });
 
 test('god armour protects far beyond ordinary plate', () => {
@@ -1254,4 +1284,60 @@ test('a hero in the full set can afford the ceiling spell', () => {
 
   expect(hero.maxMp).toBeGreaterThanOrEqual(GOD_SPELL_COST);
   expect(choosePower(hero.powers, hero.maxMp, 0).key).toBe('godlight');
+});
+
+
+test('spell costs run from four up to the ceiling, with one step below it', () => {
+  const costs = POWERS.map((p) => p.cost).sort((a, b) => a - b);
+
+  expect(costs[0]).toBe(4);
+  expect(costs[costs.length - 1]).toBe(GOD_SPELL_COST);
+  expect(costs[costs.length - 2]).toBe(26);
+  for (const c of costs.slice(0, -2)) {
+    expect(c).toBeLessThanOrEqual(12);
+  }
+});
+
+test('consumables stack in the pack and gear does not', () => {
+  const potion = { kind: 'potion', label: '+HP', color: '#ff6b8a' };
+  const plate = SPECIAL_ITEMS.find((i) => i.key === 'top-plate');
+  const chain = SPECIAL_ITEMS.find((i) => i.key === 'top-chain');
+
+  const rows = groupInventory([potion, potion, potion, plate, chain]);
+  const stacked = rows.find((r) => r.item.kind === 'potion');
+
+  expect(stacked.count).toBe(3);
+  expect(rows.filter((r) => r.item.type === 'top')).toHaveLength(2);
+});
+
+test('a stack never runs past the carry limit', () => {
+  const potion = { kind: 'potion', label: '+HP', color: '#ff6b8a' };
+  let hero = { ...initialState().hero };
+
+  for (let i = 0; i < 40; i++) {
+    if (worthTaking(hero, potion)) {
+      hero = applyPickup(hero, potion, () => {});
+    }
+  }
+
+  const stack = groupInventory(hero.inventory).find((r) => r.item.kind === 'potion');
+  expect(stack.count).toBeLessThanOrEqual(CARRY_LIMIT);
+});
+
+test('worn gear moves the numbers it promises', () => {
+  const base = initialState().hero;
+  let hero = base;
+
+  for (const piece of GOD_SET) {
+    hero = applyPickup(hero, piece, () => {});
+  }
+
+  const expectedDef = HERO_DEFENCE + GOD_SET.reduce((t, p) => t + (p.defence || 0), 0);
+  const expectedHp = HERO_MAX_HP + GOD_SET.reduce((t, p) => t + (p.maxHp || 0), 0);
+  const expectedAtk = GOD_SET.reduce((t, p) => t + (p.power || 0), 0);
+
+  expect(hero.defence).toBe(expectedDef);
+  expect(hero.maxHp).toBe(expectedHp);
+  expect(hero.weapon).toBe(expectedAtk);
+  expect(hero.speed).toBeGreaterThan(base.speed);
 });

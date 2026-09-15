@@ -255,11 +255,11 @@ export function spawnWave(heroX = 16, level = 1, allowBoss = true) {
 // monster on the field.
 export const POWERS = [
   { key: "spark", name: "SPARK", tier: 1, cost: 4, dmg: [7, 11], color: "#8fd7ff", aoe: false },
-  { key: "frost", name: "FROST", tier: 1, cost: 4, dmg: [10, 14], color: "#bfe9ff", aoe: false },
+  { key: "frost", name: "FROST", tier: 1, cost: 6, dmg: [10, 14], color: "#bfe9ff", aoe: false },
   { key: "flame", name: "FLAME", tier: 2, cost: 8, dmg: [14, 19], color: "#ffb36b", aoe: false },
-  { key: "quake", name: "QUAKE", tier: 2, cost: 8, dmg: [17, 23], color: "#d9a066", aoe: true },
+  { key: "quake", name: "QUAKE", tier: 2, cost: 10, dmg: [17, 23], color: "#d9a066", aoe: true },
   { key: "nova", name: "NOVA", tier: 3, cost: 12, dmg: [22, 30], color: "#ff6bd6", aoe: true },
-  { key: "judge", name: "JUDGEMENT", tier: 3, cost: 12, dmg: [30, 40], color: "#fff0a8", aoe: true },
+  { key: "judge", name: "JUDGEMENT", tier: 3, cost: 26, dmg: [44, 62], color: "#fff0a8", aoe: true },
   // The ceiling. It empties the pool, and the pool only reaches forty after
   // fifteen levels or with god gold on.
   { key: "godlight", name: "GODS LIGHTNING", tier: 4, cost: 40, dmg: [120, 180], color: "#fff6c9", aoe: true, god: true },
@@ -366,7 +366,7 @@ export function itemScore(item) {
 export const DISDAIN = 0.55;
 
 // How many of a consumable he will carry before leaving the rest.
-export const CARRY_LIMIT = 3;
+export const CARRY_LIMIT = 10;
 
 // Decides whether the hero bothers with something on the ground, the way a
 // player would: treasure always, consumables until his pack is full, and gear
@@ -539,14 +539,24 @@ export function applyPickup(hero, entry, push) {
   }
 
   if (entry.type === "spell") {
-    if (next.powers.indexOf(entry.grants) === -1) {
-      next.powers = next.powers.concat(entry.grants);
-      push(entry.name, entry.color);
-    } else {
+    if (next.powers.indexOf(entry.grants) !== -1) {
       // A spell he already knows is a spare book rather than nothing.
       next.inventory = next.inventory.concat(entry);
       push("SPARE TOME", entry.color);
+      return next;
     }
+
+    const spell = POWERS.find((p) => p.key === entry.grants);
+    if (spell && next.maxMp < spell.cost) {
+      // He can read it but not cast it. The book waits in the pack until his
+      // pool is deep enough, which studyTomes checks whenever that changes.
+      next.inventory = next.inventory.concat(entry);
+      push("CANNOT CAST YET", entry.color);
+      return next;
+    }
+
+    next.powers = next.powers.concat(entry.grants);
+    push(entry.name, entry.color);
     return next;
   }
 
@@ -595,6 +605,28 @@ export function recalc(hero) {
   next.hp = Math.min(next.hp, next.maxHp);
   next.mp = Math.min(next.mp, next.maxMp);
   next.element = next.gear.weapon ? next.gear.weapon.element : null;
+
+  return studyTomes(next);
+}
+
+// Reads any book in the pack he has since grown into. Called wherever the mana
+// pool can change, which is levelling and changing gear.
+export function studyTomes(hero) {
+  let next = hero;
+
+  for (const book of hero.inventory.filter((i) => i.type === "spell")) {
+    const spell = POWERS.find((p) => p.key === book.grants);
+    if (!spell || next.powers.indexOf(book.grants) !== -1) {
+      continue;
+    }
+    if (next.maxMp >= spell.cost) {
+      next = {
+        ...next,
+        powers: next.powers.concat(book.grants),
+        inventory: next.inventory.filter((i) => i !== book),
+      };
+    }
+  }
 
   return next;
 }
@@ -703,7 +735,7 @@ export function gainXp(hero, amount) {
     next.xp = 0;
   }
 
-  return next;
+  return studyTomes(next);
 }
 
 function advance(unit) {
@@ -1627,6 +1659,25 @@ function Slot({ label, item, fallback }) {
   );
 }
 
+// Consumables of a kind are one line with a count; every piece of gear stays its
+// own line, since two breastplates are two things and may differ.
+export function groupInventory(inventory) {
+  const rows = [];
+
+  for (const item of inventory) {
+    const stacks = item.kind === "potion" || item.kind === "mana" || item.type === "trophy";
+    const found = stacks && rows.find((r) => r.item.key === item.key || (r.item.kind && r.item.kind === item.kind));
+
+    if (found) {
+      found.count += 1;
+    } else {
+      rows.push({ item, count: 1 });
+    }
+  }
+
+  return rows;
+}
+
 function StatusSheet({ hero, onClose }) {
   const [tab, setTab] = React.useState("status");
   const known = POWERS.filter((p) => hero.powers.indexOf(p.key) !== -1);
@@ -1639,6 +1690,7 @@ function StatusSheet({ hero, onClose }) {
         <div className="bs-sheet__head">
           <span>HERO</span>
           <span>LV {hero.level} / {MAX_LEVEL}</span>
+          <button type="button" tabIndex={-1} className="bs-close" onClick={onClose}>X</button>
         </div>
 
         <div className="bs-tabs">
@@ -1710,14 +1762,26 @@ function StatusSheet({ hero, onClose }) {
             {hero.inventory.length === 0 ? (
               <p className="bs-bag__empty">NOTHING SPARE</p>
             ) : (
-              hero.inventory.map((item, i) => (
-                <div className="bs-bag__row" key={item.key + i}>
-                  <ItemIcon item={item} />
-                  <span className={item.god ? "bs-tag--god" : undefined}>{item.name || item.label}</span>
-                  <span className="bs-bag__stat">{describeItem(item)}</span>
-                  <span className="bs-bag__kind">{(item.type || item.kind).toUpperCase()}</span>
-                </div>
-              ))
+              groupInventory(hero.inventory).map((row, i) => {
+                const spell = row.item.type === "spell"
+                  ? POWERS.find((p) => p.key === row.item.grants)
+                  : null;
+                const locked = spell && hero.powers.indexOf(spell.key) === -1;
+
+                return (
+                  <div className="bs-bag__row" key={(row.item.key || row.item.kind) + i}>
+                    <ItemIcon item={row.item} />
+                    <span className={row.item.god ? "bs-tag--god" : undefined}>
+                      {row.item.name || row.item.label}
+                    </span>
+                    {row.count > 1 && <span className="bs-bag__count">x{row.count}</span>}
+                    <span className="bs-bag__stat">
+                      {locked ? "NEEDS " + spell.cost + " MP" : describeItem(row.item)}
+                    </span>
+                    <span className="bs-bag__kind">{(row.item.type || row.item.kind).toUpperCase()}</span>
+                  </div>
+                );
+              })
             )}
           </div>
         )}
@@ -1725,8 +1789,6 @@ function StatusSheet({ hero, onClose }) {
         {hasFullGodSet(hero.gear) && (
           <p className="bs-sheet__god">GODS GOLD SET COMPLETE</p>
         )}
-
-        <p className="bs-sheet__hint">CLICK ANYWHERE TO CLOSE</p>
       </div>
     </div>
   );

@@ -84,19 +84,29 @@ test('tells the user when the cartridge holds no roms', () => {
   expect(screen.getByText(/No ROMs on this cartridge yet/i)).toBeInTheDocument();
 });
 
-test('clicking the hero opens his status sheet, and clicking away closes it', () => {
+test('clicking the hero opens his status sheet, and the X closes it', () => {
   const { container } = renderConnected();
 
-  expect(screen.queryByText(/CLICK ANYWHERE TO CLOSE/i)).not.toBeInTheDocument();
+  expect(container.querySelector('.bs-sheet')).toBeNull();
 
-  // The battle is aria-hidden decoration, so the target is found by class
-  // rather than by role.
+  // The battle is aria-hidden decoration, so targets are found by class rather
+  // than by role.
   fireEvent.click(container.querySelector('.bs-hit'));
-  expect(screen.getByText(/CLICK ANYWHERE TO CLOSE/i)).toBeInTheDocument();
+  expect(container.querySelector('.bs-sheet')).not.toBeNull();
   expect(screen.getByText(/WORN SWORD/i)).toBeInTheDocument();
 
-  fireEvent.click(screen.getByText(/CLICK ANYWHERE TO CLOSE/i).closest('.bs-sheet-wrap'));
-  expect(screen.queryByText(/CLICK ANYWHERE TO CLOSE/i)).not.toBeInTheDocument();
+  fireEvent.click(container.querySelector('.bs-close'));
+  expect(container.querySelector('.bs-sheet')).toBeNull();
+});
+
+test('clicking the backdrop also closes the sheet', () => {
+  const { container } = renderConnected();
+
+  fireEvent.click(container.querySelector('.bs-hit'));
+  expect(container.querySelector('.bs-sheet')).not.toBeNull();
+
+  fireEvent.click(container.querySelector('.bs-sheet-wrap'));
+  expect(container.querySelector('.bs-sheet')).toBeNull();
 });
 
 test('the status sheet has an inventory tab that does not close the sheet', () => {
@@ -111,7 +121,7 @@ test('the status sheet has an inventory tab that does not close the sheet', () =
 
   // Clicking inside the sheet must not fall through to the backdrop.
   expect(screen.getByText(/NOTHING SPARE/i)).toBeInTheDocument();
-  expect(screen.getByText(/CLICK ANYWHERE TO CLOSE/i)).toBeInTheDocument();
+  expect(container.querySelector('.bs-sheet')).not.toBeNull();
 });
 
 test('equipment slots are listed with their fallbacks when nothing is found yet', () => {
