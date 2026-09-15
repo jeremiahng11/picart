@@ -25,8 +25,8 @@ import Form from 'react-bootstrap/Form';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import ProgressBar from 'react-bootstrap/ProgressBar';
+import { addSeconds, fromUnixTime } from "date-fns";
 import download from "downloadjs";
-const { addSeconds, fromUnixTime } = require("date-fns");
 
 const BANK_SIZE = 0x2000;
 const MBC2_RAM_SIZE = 0x200;
