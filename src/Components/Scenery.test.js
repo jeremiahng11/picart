@@ -1,4 +1,4 @@
-import { sceneAt, isInterior, BIOMES, PHASES, PHASE_RUN, CYCLE } from './Scenery';
+import { sceneAt, isInterior, layersFor, BIOMES, PHASES, PHASE_RUN, CYCLE } from './Scenery';
 
 test('eight biomes, each with a day and a night, gives sixteen looks', () => {
   expect(BIOMES).toHaveLength(8);
@@ -58,10 +58,44 @@ test('an interior can be entered under one sky and left under another', () => {
   expect(crossings.length).toBeGreaterThan(0);
 });
 
-test('castle and dungeon are the interiors', () => {
-  expect(isInterior('castle')).toBe(true);
-  expect(isInterior('dungeon')).toBe(true);
+test('the temple and the ruins are the interiors', () => {
+  expect(isInterior('temple')).toBe(true);
+  expect(isInterior('ruins')).toBe(true);
   expect(isInterior('forest')).toBe(false);
+});
+
+test('every biome and phase resolves to four layers of art', () => {
+  for (const biome of BIOMES) {
+    for (const phase of PHASES) {
+      const { layers } = layersFor(biome, phase);
+      expect(layers).toHaveLength(4);
+      for (const src of layers) {
+        expect(typeof src).toBe('string');
+        expect(src.length).toBeGreaterThan(0);
+      }
+    }
+  }
+});
+
+test('biomes with night plates use them, and the rest are dimmed instead', () => {
+  // Jest stubs an image import as its bare filename, so every layer resolves to
+  // the same string here and the paths cannot be compared. The flag is what
+  // carries the decision, so that is what is asserted.
+  const authored = BIOMES.filter((b) => !layersFor(b, 'night').dimmed);
+  const faked = BIOMES.filter((b) => layersFor(b, 'night').dimmed);
+
+  for (const biome of BIOMES) {
+    expect(layersFor(biome, 'day').dimmed).toBe(false);
+  }
+
+  expect(authored.length).toBeGreaterThanOrEqual(4);
+  expect(faked.length).toBeGreaterThan(0);
+  expect(authored.length + faked.length).toBe(BIOMES.length);
+});
+
+test('an unknown biome falls back rather than rendering nothing', () => {
+  const { layers } = layersFor('atlantis', 'day');
+  expect(layers).toHaveLength(4);
 });
 
 test('the cycle wraps rather than running off the end', () => {

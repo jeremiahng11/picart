@@ -960,12 +960,9 @@ body {
 }
 
 /* ---- scenery ----
- * Eight biomes, each with a day and a night palette. Every layer is a gradient,
- * so the whole set costs no requests. Layers scroll at different rates, which
- * is what reads as distance.
- *
- * The plains night is deliberately transparent: it lets the original night
- * scene painted on .cart__label show through unchanged, animation and all.
+ * Hand drawn parallax plates, four layers to a scene. Each layer is laid across
+ * a strip twice the width of the frame and slid half its length, which loops
+ * seamlessly because the art tiles horizontally.
  */
 
 .sc { position: absolute; inset: 0; overflow: hidden; }
@@ -973,245 +970,51 @@ body {
 .sc-scene {
   position: absolute;
   inset: 0;
+  overflow: hidden;
   animation: sc-fade 1.3s ease-out both;
 }
+
+/* Night for the four biomes that have no night plates of their own: dimmed and
+   cooled rather than invented. */
+.sc-scene.is-dimmed { filter: brightness(0.42) saturate(0.65) hue-rotate(200deg); }
 
 @keyframes sc-fade {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-.sc-sky, .sc-stars, .sc-orb, .sc-far, .sc-mid, .sc-near, .sc-ground {
+.sc-layer {
   position: absolute;
-  inset: 0;
-}
-
-.sc-sky {
-  background: linear-gradient(180deg, var(--sky-a) 0%, var(--sky-b) 52%, var(--sky-c) 100%);
-}
-
-.sc-orb {
-  background-repeat: no-repeat;
-  background-image: radial-gradient(circle at 78% 20%, var(--orb) 0 7px, transparent 8px);
-}
-
-.is-night .sc-stars {
-  background-repeat: repeat;
-  background-size: 150px 120px;
-  background-image:
-    radial-gradient(1px 1px at 20px 26px, #fff 50%, transparent 50%),
-    radial-gradient(1px 1px at 96px 14px, #ffe6f3 50%, transparent 50%),
-    radial-gradient(1px 1px at 130px 62px, #d7e9ff 50%, transparent 50%),
-    radial-gradient(1px 1px at 58px 88px, #fff 50%, transparent 50%);
-  animation: sc-scroll-stars 240s linear infinite;
-}
-
-.sc-far, .sc-mid, .sc-near {
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
   background-repeat: repeat-x;
-  background-position: bottom left;
+  background-position: left bottom;
+  background-size: auto 100%;
+  /* The plates are 128px tall pixel art blown up several times over; smoothing
+     them would turn crisp dots into mush. */
+  image-rendering: pixelated;
+  animation-name: sc-pan;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }
 
-.sc-far { background-size: 120px 100%; animation: sc-scroll-far 90s linear infinite; }
-.sc-mid { background-size: 80px 100%; animation: sc-scroll-mid 54s linear infinite; }
-.sc-near { background-size: 56px 100%; animation: sc-scroll-near 30s linear infinite; }
-
-.sc-ground {
-  top: auto;
-  height: 16%;
-  background: var(--ground);
+/* The sky is one flat plate, so it neither tiles nor needs to travel. */
+.sc-layer--0 {
+  width: 100%;
+  background-size: cover;
+  background-position: center bottom;
+  animation: none;
 }
 
-@keyframes sc-scroll-far { to { background-position-x: -120px; } }
-@keyframes sc-scroll-mid { to { background-position-x: -80px; } }
-@keyframes sc-scroll-near { to { background-position-x: -56px; } }
-@keyframes sc-scroll-stars { to { background-position-x: -150px; } }
-
-/* The original night scene keeps the label to itself. */
-.sc-plains.is-night { background: none; }
-.sc-plains.is-night .sc-sky,
-.sc-plains.is-night .sc-stars,
-.sc-plains.is-night .sc-orb,
-.sc-plains.is-night .sc-far,
-.sc-plains.is-night .sc-mid,
-.sc-plains.is-night .sc-near,
-.sc-plains.is-night .sc-ground { background: none; animation: none; }
-
-.sc-plains.is-day {
-  --sky-a: #8fd3ff; --sky-b: #cfeaff; --sky-c: #e9f5d4;
-  --far: #7fae7a; --mid: #5f9463; --near: #477a4c;
-  --ground: #3c6b40; --orb: #fff6c9;
-  --far-img: radial-gradient(ellipse 46px 16px at 50% 100%, var(--far) 0 100%, transparent 101%);
-  --mid-img: radial-gradient(ellipse 32px 12px at 50% 100%, var(--mid) 0 100%, transparent 101%);
-  --near-img: radial-gradient(ellipse 24px 8px at 50% 100%, var(--near) 0 100%, transparent 101%);
-  --far-size: 120px; --mid-size: 80px; --near-size: 56px;
+@keyframes sc-pan {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
-.sc-forest.is-day {
-  --sky-a: #8ed0ff; --sky-b: #bfe6ff; --sky-c: #e7f4d9;
-  --far: #4d7a63; --mid: #356049; --near: #24452f;
-  --ground: #1d3324; --orb: #fff3b0;
-  --far-img: radial-gradient(ellipse 7px 40px at 50% 100%, var(--far) 0 100%, transparent 101%);
-  --mid-img: radial-gradient(ellipse 9px 30px at 50% 100%, var(--mid) 0 100%, transparent 101%);
-  --near-img: radial-gradient(ellipse 11px 20px at 50% 100%, var(--near) 0 100%, transparent 101%);
-  --far-size: 26px; --mid-size: 20px; --near-size: 16px;
-}
-.sc-forest.is-night {
-  --sky-a: #0f1a2e; --sky-b: #18294a; --sky-c: #1d3a44;
-  --far: #163a30; --mid: #102a22; --near: #0a1c16;
-  --ground: #08140f; --orb: #e8eeff;
-  --far-img: radial-gradient(ellipse 7px 40px at 50% 100%, var(--far) 0 100%, transparent 101%);
-  --mid-img: radial-gradient(ellipse 9px 30px at 50% 100%, var(--mid) 0 100%, transparent 101%);
-  --near-img: radial-gradient(ellipse 11px 20px at 50% 100%, var(--near) 0 100%, transparent 101%);
-  --far-size: 26px; --mid-size: 20px; --near-size: 16px;
-}
-.sc-castle.is-day {
-  --sky-a: #9dc7ff; --sky-b: #cfe2ff; --sky-c: #d8d2c4;
-  --far: #8c8ba0; --mid: #6f6e85; --near: #56556b;
-  --ground: #3f3e52; --orb: #fff6c9;
-  --far-img: repeating-linear-gradient(90deg, var(--far) 0 16px, transparent 16px 74px);
-  --mid-img: repeating-linear-gradient(90deg, var(--mid) 0 10px, transparent 10px 20px);
-  --near-img: linear-gradient(0deg, var(--near) 0 100%, var(--near) 100%);
-  --far-size: 148px; --mid-size: 20px; --near-size: 40px;
-}
-.sc-castle.is-night {
-  --sky-a: #0c1128; --sky-b: #1a1f42; --sky-c: #2b2b52;
-  --far: #3b3a5e; --mid: #2a2947; --near: #1d1c33;
-  --ground: #141326; --orb: #dfe6ff;
-  --far-img: repeating-linear-gradient(90deg, var(--far) 0 16px, transparent 16px 74px);
-  --mid-img: repeating-linear-gradient(90deg, var(--mid) 0 10px, transparent 10px 20px);
-  --near-img: linear-gradient(0deg, var(--near) 0 100%, var(--near) 100%);
-  --far-size: 148px; --mid-size: 20px; --near-size: 40px;
-}
-.sc-desert.is-day {
-  --sky-a: #7fc6ff; --sky-b: #ffd9a0; --sky-c: #ffe9c4;
-  --far: #c9985c; --mid: #b07d45; --near: #8a5f34;
-  --ground: #6b4a28; --orb: #fff0a8;
-  --far-img: radial-gradient(ellipse 60px 14px at 50% 100%, var(--far) 0 100%, transparent 101%);
-  --mid-img: radial-gradient(ellipse 44px 10px at 50% 100%, var(--mid) 0 100%, transparent 101%);
-  --near-img: radial-gradient(ellipse 34px 7px at 50% 100%, var(--near) 0 100%, transparent 101%);
-  --far-size: 150px; --mid-size: 110px; --near-size: 80px;
-}
-.sc-desert.is-night {
-  --sky-a: #101a34; --sky-b: #2a2350; --sky-c: #4a3352;
-  --far: #5a4230; --mid: #3f2e22; --near: #2a1e16;
-  --ground: #1b1410; --orb: #ffeccf;
-  --far-img: radial-gradient(ellipse 60px 14px at 50% 100%, var(--far) 0 100%, transparent 101%);
-  --mid-img: radial-gradient(ellipse 44px 10px at 50% 100%, var(--mid) 0 100%, transparent 101%);
-  --near-img: radial-gradient(ellipse 34px 7px at 50% 100%, var(--near) 0 100%, transparent 101%);
-  --far-size: 150px; --mid-size: 110px; --near-size: 80px;
-}
-.sc-dungeon.is-day {
-  --sky-a: #4a4560; --sky-b: #3a3550; --sky-c: #2e2a42;
-  --far: #6a6280; --mid: #524b68; --near: #3d3752;
-  --ground: #241f33; --orb: #ffb36b;
-  --far-img: repeating-linear-gradient(90deg, var(--far) 0 12px, transparent 12px 52px);
-  --mid-img: radial-gradient(ellipse 14px 20px at 50% 0%, var(--mid) 0 100%, transparent 101%);
-  --near-img: repeating-linear-gradient(90deg, var(--near) 0 20px, transparent 20px 24px);
-  --far-size: 104px; --mid-size: 52px; --near-size: 44px;
-}
-.sc-dungeon.is-night {
-  --sky-a: #181427; --sky-b: #120f1f; --sky-c: #0d0b18;
-  --far: #3a3352; --mid: #2a2440; --near: #1c1830;
-  --ground: #0f0c1a; --orb: #ff9b6b;
-  --far-img: repeating-linear-gradient(90deg, var(--far) 0 12px, transparent 12px 52px);
-  --mid-img: radial-gradient(ellipse 14px 20px at 50% 0%, var(--mid) 0 100%, transparent 101%);
-  --near-img: repeating-linear-gradient(90deg, var(--near) 0 20px, transparent 20px 24px);
-  --far-size: 104px; --mid-size: 52px; --near-size: 44px;
-}
-.sc-coast.is-day {
-  --sky-a: #8fd8ff; --sky-b: #c9eeff; --sky-c: #ffe7c2;
-  --far: #3f7fa8; --mid: #6fc0e0; --near: #9ad8ef;
-  --ground: #c9b48c; --orb: #fff3b0;
-  --far-img: radial-gradient(ellipse 34px 22px at 50% 100%, var(--far) 0 100%, transparent 101%);
-  --mid-img: repeating-linear-gradient(0deg, var(--mid) 0 2px, transparent 2px 7px);
-  --near-img: repeating-linear-gradient(0deg, var(--near) 0 2px, transparent 2px 5px);
-  --far-size: 190px; --mid-size: 100px; --near-size: 70px;
-}
-.sc-coast.is-night {
-  --sky-a: #0c1730; --sky-b: #152a4c; --sky-c: #1d3f5e;
-  --far: #123650; --mid: #1d5470; --near: #2a6b88;
-  --ground: #2a2438; --orb: #dfeaff;
-  --far-img: radial-gradient(ellipse 34px 22px at 50% 100%, var(--far) 0 100%, transparent 101%);
-  --mid-img: repeating-linear-gradient(0deg, var(--mid) 0 2px, transparent 2px 7px);
-  --near-img: repeating-linear-gradient(0deg, var(--near) 0 2px, transparent 2px 5px);
-  --far-size: 190px; --mid-size: 100px; --near-size: 70px;
-}
-.sc-ruins.is-day {
-  --sky-a: #9dc7ff; --sky-b: #cfe2ff; --sky-c: #e8e2d0;
-  --far: #9a927e; --mid: #7d7565; --near: #5e584c;
-  --ground: #453f36; --orb: #fff6c9;
-  --far-img: repeating-linear-gradient(90deg, var(--far) 0 6px, transparent 6px 17px, var(--far) 17px 21px, transparent 21px 44px);
-  --mid-img: repeating-linear-gradient(90deg, var(--mid) 0 5px, transparent 5px 26px);
-  --near-img: radial-gradient(ellipse 18px 6px at 50% 100%, var(--near) 0 100%, transparent 101%);
-  --far-size: 88px; --mid-size: 62px; --near-size: 44px;
-}
-.sc-ruins.is-night {
-  --sky-a: #101427; --sky-b: #1b2340; --sky-c: #2b2f4d;
-  --far: #3a3648; --mid: #2a2836; --near: #1c1a26;
-  --ground: #12111a; --orb: #e6e9ff;
-  --far-img: repeating-linear-gradient(90deg, var(--far) 0 6px, transparent 6px 17px, var(--far) 17px 21px, transparent 21px 44px);
-  --mid-img: repeating-linear-gradient(90deg, var(--mid) 0 5px, transparent 5px 26px);
-  --near-img: radial-gradient(ellipse 18px 6px at 50% 100%, var(--near) 0 100%, transparent 101%);
-  --far-size: 88px; --mid-size: 62px; --near-size: 44px;
-}
-.sc-volcano.is-day {
-  --sky-a: #ffb07a; --sky-b: #ff8f6b; --sky-c: #c96a4a;
-  --far: #6b3a2e; --mid: #4d2822; --near: #331a16;
-  --ground: #241110; --orb: #fff0a8;
-  --far-img: radial-gradient(ellipse 30px 44px at 50% 100%, var(--far) 0 100%, transparent 101%);
-  --mid-img: radial-gradient(ellipse 20px 26px at 50% 100%, var(--mid) 0 100%, transparent 101%);
-  --near-img: radial-gradient(ellipse 26px 9px at 50% 100%, var(--near) 0 100%, transparent 101%);
-  --far-size: 96px; --mid-size: 64px; --near-size: 50px;
-}
-.sc-volcano.is-night {
-  --sky-a: #1a0a10; --sky-b: #33121c; --sky-c: #5a1a1e;
-  --far: #40161a; --mid: #2a0f14; --near: #1a0a0e;
-  --ground: #120708; --orb: #ff9b6b;
-  --far-img: radial-gradient(ellipse 30px 44px at 50% 100%, var(--far) 0 100%, transparent 101%);
-  --mid-img: radial-gradient(ellipse 20px 26px at 50% 100%, var(--mid) 0 100%, transparent 101%);
-  --near-img: radial-gradient(ellipse 26px 9px at 50% 100%, var(--near) 0 100%, transparent 101%);
-  --far-size: 96px; --mid-size: 64px; --near-size: 50px;
-}
-
-/* Tile widths vary per biome, so trees crowd and dunes spread. */
-.sc-far { background-image: var(--far-img); background-size: var(--far-size, 120px) 100%; }
-.sc-mid { background-image: var(--mid-img); background-size: var(--mid-size, 80px) 100%; }
-.sc-near { background-image: var(--near-img); background-size: var(--near-size, 56px) 100%; }
-
-/* Interiors have no sky: a lit wall and a flagstone floor instead. */
-.sc-dungeon .sc-sky {
-  background:
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.3) 0 1px, transparent 1px 30px),
-    repeating-linear-gradient(0deg, var(--sky-a) 0 13px, var(--sky-b) 13px 14px);
-}
-
-.sc-dungeon .sc-orb {
-  background-image:
-    radial-gradient(circle at 22% 28%, var(--orb) 0 3px, rgba(255, 179, 107, 0.22) 3px 12px, transparent 13px),
-    radial-gradient(circle at 74% 24%, var(--orb) 0 3px, rgba(255, 179, 107, 0.22) 3px 12px, transparent 13px);
-  animation: sc-torch 2.4s ease-in-out infinite;
-}
-
-.sc-castle .sc-near { background-position: bottom; background-size: 100% 22px; }
-
-.sc-coast .sc-mid, .sc-coast .sc-near { background-position: bottom; }
-
-@keyframes sc-torch {
-  0%, 100% { opacity: 0.85; }
-  50% { opacity: 1; }
-}
-
-/* The plains night is the original scene, so it keeps the label to itself. */
-.sc-plains.is-night { background: none; }
-.sc-plains.is-night .sc-sky,
-.sc-plains.is-night .sc-stars,
-.sc-plains.is-night .sc-orb,
-.sc-plains.is-night .sc-far,
-.sc-plains.is-night .sc-mid,
-.sc-plains.is-night .sc-near,
-.sc-plains.is-night .sc-ground { background: none; animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-scene, .sc-far, .sc-mid, .sc-near, .sc-stars, .sc-orb { animation: none; }
+  .sc-scene, .sc-layer { animation: none; }
 }
 
 /* ---- battle ----
