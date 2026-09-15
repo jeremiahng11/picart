@@ -301,3 +301,11 @@ test('a cartridge that reports no build name shows none', () => {
   expect(container.querySelector('.footer__buildname')).toBeNull();
   expect(container.querySelector('.footer').textContent).toMatch(/Firmware 0\.5\.2 R/);
 });
+
+
+test('the connect screen offers a way to reach a cartridge the browser does not know', () => {
+  renderPlaying();
+
+  expect(screen.getByRole('button', { name: /^connect$/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /use a different cartridge/i })).toBeInTheDocument();
+});

@@ -47,9 +47,10 @@ class Communication {
         this.supportsMbcInfo = false;
     }
 
-    // A device already granted by the browser can be reopened without asking
-    // again. Reconnecting after a disconnect is the case that matters: the
-    // permission is still held, so there is no need for a second prompt.
+    // Only devices the browser has already been granted are visible here. An
+    // unpaired one cannot be seen at all, by design, which is why "prompt only
+    // when a new cartridge appears" cannot be detected and has to be a choice
+    // the user makes.
     static grantedPort() {
         return navigator.usb.getDevices().then((devices) => {
             return devices.find((d) =>
@@ -92,19 +93,21 @@ class Communication {
         })
     }
 
-    // reuse asks the browser for a device it has already granted, so a
-    // reconnect does not prompt again. Every step is bounded, because a step
-    // that hangs used to strand the app on the connecting screen forever.
-    getDevice(reuse = true) {
+    // Opens a cartridge the browser already knows without asking again, which
+    // is the ordinary case. Pass choose to insist on the chooser, which is the
+    // only way to reach a cartridge that has never been paired. Every step is
+    // bounded, because a step that hangs used to strand the app on the
+    // connecting screen with no way forward.
+    getDevice({ choose = false } = {}) {
         this.ready = false;
 
-        const pick = reuse
-            ? Communication.grantedPort().then((granted) => granted || Communication.requestPort())
-            : Communication.requestPort();
+        const pick = choose
+            ? Communication.requestPort()
+            : Communication.grantedPort().then((granted) => granted || Communication.requestPort());
 
         let device = null;
 
-        return withTimeout(pick, "Choosing a device").then((dev) => {
+        return pick.then((dev) => {
             console.log("Opening device...");
             device = dev;
             this.device = device;

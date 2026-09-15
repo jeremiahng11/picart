@@ -176,20 +176,15 @@ class GbCartridge extends React.Component {
     )
   }
 
-  ConnectButtonHandler() {
+  // choose forces the browser's chooser. Without it a cartridge the browser
+  // already knows is opened straight away, which is what most connects are.
+  ConnectButtonHandler(choose = false) {
     this.comm = new Communication();
     this.setState({
       state: this.StateConnecting
     });
 
-    this.comm.getDevice().catch((first) => {
-      // The browser may still hold permission for a device it can no longer
-      // open, which is the state a disconnect can leave behind. Ask for one
-      // rather than giving up.
-      console.log("Reopening the granted device failed: " + first);
-      this.comm = new Communication();
-      return this.comm.getDevice(false);
-    }).then(() => {
+    this.comm.getDevice({ choose }).then(() => {
       console.log("Usb connected, updating status.");
       this.setState({
         state: this.StateRetrievingInfo
@@ -508,6 +503,15 @@ class GbCartridge extends React.Component {
             <button type="button" className="btn-jkl btn-jkl--lg" onClick={() => this.ConnectButtonHandler()}>
               Connect
             </button>
+            <p className="hero__choose">
+              <button
+                type="button"
+                className="linkbtn"
+                onClick={() => this.ConnectButtonHandler(true)}
+              >
+                Use a different cartridge
+              </button>
+            </p>
             <p className="hero__version">Version {process.env.REACT_APP_VERSION}</p>
           </main>
         </div>,

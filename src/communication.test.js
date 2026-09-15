@@ -187,27 +187,67 @@ function withEndpoints(comm) {
   return comm;
 }
 
-test('a device the browser already granted is reopened without prompting', async () => {
-  let prompted = false;
-  const dev = fakeUsb({ onRequest: () => { prompted = true; return Promise.resolve({}); } });
-  global.navigator.usb.getDevices = () => Promise.resolve([{ ...dev, vendorId: 0x2e8a, productId: 0x107f }]);
+test('a cartridge the browser already knows opens without asking', async () => {
+  let prompted = 0;
+  const dev = fakeUsb();
+  global.navigator.usb.getDevices = () =>
+    Promise.resolve([{ ...dev, vendorId: 0x2e8a, productId: 0x107f }]);
+  global.navigator.usb.requestDevice = () => { prompted += 1; return Promise.resolve(dev); };
 
   const comm = withEndpoints(new Communication());
   await comm.getDevice();
 
-  expect(prompted).toBe(false);
+  expect(prompted).toBe(0);
   expect(comm.ready).toBe(true);
 });
 
-test('with nothing granted it asks for a device', async () => {
-  let prompted = false;
+test('asking to choose shows the chooser even when one is already known', async () => {
+  let prompted = 0;
   const dev = fakeUsb();
-  global.navigator.usb.requestDevice = () => { prompted = true; return Promise.resolve(dev); };
+  global.navigator.usb.getDevices = () =>
+    Promise.resolve([{ ...dev, vendorId: 0x2e8a, productId: 0x107f }]);
+  global.navigator.usb.requestDevice = () => { prompted += 1; return Promise.resolve(dev); };
+
+  const comm = withEndpoints(new Communication());
+  await comm.getDevice({ choose: true });
+
+  expect(prompted).toBe(1);
+});
+
+test('with nothing known it falls through to the chooser', async () => {
+  let prompted = 0;
+  const dev = fakeUsb();
+  global.navigator.usb.requestDevice = () => { prompted += 1; return Promise.resolve(dev); };
 
   const comm = withEndpoints(new Communication());
   await comm.getDevice();
 
-  expect(prompted).toBe(true);
+  expect(prompted).toBe(1);
+});
+
+test('a device of another kind is not mistaken for the cartridge', async () => {
+  let prompted = 0;
+  const dev = fakeUsb();
+  // A granted device that is not one of ours must not be opened silently.
+  global.navigator.usb.getDevices = () =>
+    Promise.resolve([{ ...dev, vendorId: 0x1234, productId: 0x5678 }]);
+  global.navigator.usb.requestDevice = () => { prompted += 1; return Promise.resolve(dev); };
+
+  const comm = withEndpoints(new Communication());
+  await comm.getDevice();
+
+  expect(prompted).toBe(1);
+});
+
+test('choosing nothing rejects rather than opening something unasked', async () => {
+  fakeUsb();
+  const cancelled = new Error('No device selected.');
+  cancelled.name = 'NotFoundError';
+  global.navigator.usb.requestDevice = () => Promise.reject(cancelled);
+
+  const comm = withEndpoints(new Communication());
+
+  await expect(comm.getDevice()).rejects.toThrow(/no device selected/i);
 });
 
 test('a device with no vendor interface is refused rather than half opened', async () => {
@@ -225,7 +265,7 @@ test('an already open device is not opened twice', async () => {
   dev.open = () => { opens += 1; return Promise.resolve(); };
 
   const comm = withEndpoints(new Communication());
-  await comm.getDevice(false);
+  await comm.getDevice({ choose: true });
 
   expect(opens).toBe(0);
 });
@@ -237,10 +277,16 @@ test('a step that never settles is abandoned rather than hanging forever', async
   dev.open = () => new Promise(() => { });
 
   const comm = withEndpoints(new Communication());
-  const attempt = comm.getDevice(false);
+  const attempt = comm.getDevice({ choose: true });
   const assertion = expect(attempt).rejects.toThrow(/timed out/i);
 
-  await Promise.resolve();
+  // The chooser resolves through a couple of promise hops before the first
+  // bounded step arms its timer, so the queue is drained before the clock moves;
+  // advancing too early finds no timer to fire.
+  for (let i = 0; i < 20; i++) {
+    await Promise.resolve();
+  }
+
   jest.advanceTimersByTime(20000);
   await assertion;
 
