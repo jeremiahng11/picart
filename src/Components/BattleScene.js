@@ -1081,17 +1081,13 @@ function prefersReducedMotion() {
 
 // Palettes per slot tier. Tier 0 is the clothes he sets out in, so every piece
 // found visibly replaces cloth with something better.
-const TOP_COLOURS = [
-  { base: "#8a6f4a", lit: "#a98a5e", dark: "#6b5436" },
-  { base: "#a9713f", lit: "#c98f57", dark: "#7d5028" },
-  { base: "#9aa8c4", lit: "#c3cde0", dark: "#6f7d99" },
-  { base: "#dfe6f5", lit: "#ffffff", dark: "#a8b4cc" },
-];
+const TOP_COLOURS = ["#3d4a66", "#7a5334", "#7f8ba6", "#c6d0e4"];
+const LEG_COLOURS = ["#331b0a", "#5c3a1c", "#5f6a84", "#aab4c9"];
+const BOOT_COLOURS = ["#663614", "#7d4a20", "#6f7a92", "#b9c2d6"];
+const GLOVE_COLOURS = ["#cca38e", "#8a5a33", "#7b869e", "#c6d0e4"];
+const HELM_COLOURS = ["#663614", "#8a5a33", "#7f8ba6", "#c6d0e4"];
 
-const LEG_COLOURS = ["#6b5a3e", "#8a5f34", "#8d99b5", "#dfe6f5"];
-const BOOT_COLOURS = ["#5a4630", "#8a5f34", "#8d99b5", "#dfe6f5"];
-const GLOVE_COLOURS = ["#c9a882", "#a9713f", "#8d99b5", "#dfe6f5"];
-
+// Shields are carried, not worn, so they stay an overlay.
 const SHIELD_COLOURS = [
   null,
   { base: "#c9962b", lit: "#ffd76b" },
@@ -1099,12 +1095,95 @@ const SHIELD_COLOURS = [
   { base: "#ffd76b", lit: "#fff6c9" },
 ];
 
-const HELM_COLOURS = [
-  { base: "#f6cfa6", lit: "#ffe3c4", dark: "#c9a882" },
-  { base: "#a9713f", lit: "#c98f57", dark: "#7d5028" },
-  { base: "#9aa8c4", lit: "#c3cde0", dark: "#6f7d99" },
-  { base: "#cfd6e6", lit: "#f6f9ff", dark: "#9aa3bb" },
+// Which pixels of the base plate belong to which slot. The artist reused one
+// brown for both hair and boots, so the row range is what tells them apart;
+// colour alone would recolour his head when he found a pair of sabatons.
+const SWAPS = [
+  { slot: "top", from: [0x3d, 0x4a, 0x66], rows: [8, 13], palette: TOP_COLOURS },
+  { slot: "legs", from: [0x33, 0x1b, 0x0a], rows: [9, 15], palette: LEG_COLOURS },
+  { slot: "boots", from: [0x66, 0x36, 0x14], rows: [12, 15], palette: BOOT_COLOURS },
+  { slot: "gloves", from: [0xcc, 0xa3, 0x8e], rows: [10, 13], palette: GLOVE_COLOURS },
+  { slot: "helm", from: [0x66, 0x36, 0x14], rows: [0, 7], palette: HELM_COLOURS },
 ];
+
+function hexToRgb(hex) {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+}
+
+const sheetCache = new Map();
+
+// Repaints the base plate for the gear he is wearing. Swapping the pixels is
+// what makes armour look worn rather than stuck on, which drawing rectangles
+// over the top never could.
+export function recolourKey(gear) {
+  return SWAPS.map((sw) => (gear[sw.slot] ? gear[sw.slot].tier : 0)).join("-");
+}
+
+function recolouredSheet(gear) {
+  const key = recolourKey(gear);
+  if (key === "0-0-0-0-0") {
+    return warriorBase;
+  }
+  if (sheetCache.has(key)) {
+    return sheetCache.get(key);
+  }
+
+  // jsdom has no canvas, and a browser that refuses one should still show the
+  // hero rather than nothing.
+  let canvas;
+  try {
+    canvas = document.createElement("canvas");
+  } catch (e) {
+    return warriorBase;
+  }
+  const ctx = canvas.getContext && canvas.getContext("2d");
+  const img = sheetCache.get("__img");
+  if (!ctx || !img || !img.complete || !img.naturalWidth) {
+    return warriorBase;
+  }
+
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  ctx.drawImage(img, 0, 0);
+
+  const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = frame.data;
+  const rules = SWAPS
+    .map((sw) => {
+      const tier = gear[sw.slot] ? gear[sw.slot].tier : 0;
+      return tier > 0 ? { ...sw, to: hexToRgb(sw.palette[Math.min(tier, 3)]) } : null;
+    })
+    .filter(Boolean);
+
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const o = (y * canvas.width + x) * 4;
+      if (data[o + 3] < 128) {
+        continue;
+      }
+      for (const rule of rules) {
+        if (y < rule.rows[0] || y > rule.rows[1]) {
+          continue;
+        }
+        if (data[o] === rule.from[0] && data[o + 1] === rule.from[1] && data[o + 2] === rule.from[2]) {
+          data[o] = rule.to[0];
+          data[o + 1] = rule.to[1];
+          data[o + 2] = rule.to[2];
+          break;
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(frame, 0, 0);
+  const url = canvas.toDataURL();
+  sheetCache.set(key, url);
+  return url;
+}
 
 function tierOf(piece) {
   return piece ? piece.tier : 0;
@@ -1114,12 +1193,35 @@ function tierOf(piece) {
 // off, and everything he is wearing is drawn over it in the same sixteen by
 // sixteen space, so an overlay lands exactly where a pixel would.
 function HeroSprite({ gear, frames }) {
-  const top = TOP_COLOURS[tierOf(gear.top)];
-  const legs = LEG_COLOURS[tierOf(gear.legs)];
-  const boots = BOOT_COLOURS[tierOf(gear.boots)];
-  const glove = GLOVE_COLOURS[tierOf(gear.gloves)];
+  const [sheet, setSheet] = React.useState(warriorBase);
+  const key = recolourKey(gear);
+
+  React.useEffect(() => {
+    let live = true;
+
+    const paint = () => {
+      if (live) {
+        setSheet(recolouredSheet(gear));
+      }
+    };
+
+    if (sheetCache.get("__img")) {
+      paint();
+      return () => { live = false; };
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      sheetCache.set("__img", img);
+      paint();
+    };
+    img.src = warriorBase;
+    return () => { live = false; };
+    // The key is the whole of what the repaint depends on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
   const helmTier = tierOf(gear.helm);
-  const helm = HELM_COLOURS[helmTier];
   const shieldTier = tierOf(gear.shield);
   const weapon = gear.weapon || STARTER_WEAPON;
 
@@ -1137,31 +1239,19 @@ function HeroSprite({ gear, frames }) {
     <span className="bs-rig">
       <span
         className="bs-plate"
-        style={{ backgroundImage: "url(" + warriorBase + ")", "--frames": frames }}
+        style={{ backgroundImage: "url(" + sheet + ")", "--frames": frames }}
       />
       <svg className="bs-over" viewBox="0 0 16 16" shapeRendering="crispEdges">
-        {/* torso and limbs, painted over the base tunic */}
-        {gear.top && (
+        {/* A heavier helm adds a brow and a nasal bar over the repainted hair,
+            deliberately leaving the eyes and cheeks showing. */}
+        {helmTier >= 2 && (
           <g>
-            <rect x="6" y="8" width="5" height="4" fill={top.base} />
-            <rect x="6" y="8" width="5" height="1" fill={top.lit} />
-            <rect x="6" y="11" width="5" height="1" fill={top.dark} />
-          </g>
-        )}
-        {gear.legs && <rect x="6" y="12" width="5" height="2" fill={legs} />}
-        {gear.boots && <rect x="6" y="14" width="5" height="1" fill={boots} />}
-
-        {/* helm sits on the crown; nothing is drawn when he is bare headed */}
-        {helmTier > 0 && (
-          <g>
-            <rect x="5" y="4" width="6" height="2" fill={helm.base} />
-            <rect x="5" y="4" width="6" height="1" fill={helm.lit} />
-            {helmTier >= 2 && <rect x="5" y="6" width="6" height="1" fill={helm.dark} />}
-            {helmTier >= 3 && <rect x="7" y="6" width="2" height="2" fill={helm.base} />}
+            <rect x="5" y="5" width="6" height="1" fill={HELM_COLOURS[Math.min(helmTier, 3)]} />
+            {helmTier >= 3 && <rect x="7" y="6" width="1" height="2" fill={HELM_COLOURS[3]} />}
           </g>
         )}
 
-        {/* shield on the leading arm */}
+        {/* Held, not worn: these belong on top of the body. */}
         {shieldTier > 0 && (
           <g>
             <rect x="3" y={10 - shieldTier} width="3" height={3 + shieldTier} fill={SHIELD_COLOURS[shieldTier].base} />
@@ -1169,8 +1259,6 @@ function HeroSprite({ gear, frames }) {
           </g>
         )}
 
-        {/* gauntlet and blade in the trailing hand */}
-        {gear.gloves && <rect x="11" y="9" width="1" height="2" fill={glove} />}
         <g className="bs-hero-arm">
           <rect x="12" y={10 - blade.len} width="1" height={blade.len} fill={blade.body} />
           <rect x="12" y={10 - blade.len} width="1" height="1" fill={blade.edge} />

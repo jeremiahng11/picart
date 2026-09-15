@@ -1,7 +1,7 @@
 import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
   MONSTERS, BOSSES, EFFECT_ART, bossChance, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
-  itemScore, worthTaking,
+  itemScore, worthTaking, recolourKey,
   HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
 
@@ -1065,4 +1065,24 @@ test('spilled loot is spread out rather than stacked on one spot', () => {
   const xs = after.drops.map((d) => d.x);
   expect(xs.length).toBeGreaterThan(1);
   expect(new Set(xs).size).toBe(xs.length);
+});
+
+test('the repaint key changes with what he is wearing, and only with that', () => {
+  const base = initialState().hero;
+  expect(recolourKey(base.gear)).toBe('0-0-0-0-0');
+
+  const top = SPECIAL_ITEMS.find((i) => i.type === 'top' && i.tier === 3);
+  const dressed = applyPickup(base, top, () => {});
+  expect(recolourKey(dressed.gear)).not.toBe(recolourKey(base.gear));
+
+  // A sword changes nothing about the body, so the plate need not be repainted.
+  const armed = applyPickup(dressed, SPECIAL_ITEMS.find((i) => i.type === 'weapon'), () => {});
+  expect(recolourKey(armed.gear)).toBe(recolourKey(dressed.gear));
+});
+
+test('each body slot has a colour for every tier it can reach', () => {
+  for (const slot of ['top', 'legs', 'boots', 'gloves', 'helm']) {
+    const tiers = SPECIAL_ITEMS.filter((i) => i.type === slot).map((i) => i.tier);
+    expect(Math.max(...tiers)).toBeLessThanOrEqual(3);
+  }
 });
