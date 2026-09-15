@@ -21,7 +21,6 @@ import AddNewRomModal from "./Components/AddNewRomModal";
 import ConfirmationModal from './Components/ConfirmationModal';
 import SavegameModal from './Components/SavegameModal';
 import BattleScene from './Components/BattleScene';
-import Scenery from './Components/Scenery';
 import { Trash3Fill, Save2Fill } from "react-bootstrap-icons";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -319,11 +318,10 @@ class GbCartridge extends React.Component {
             {/* Sits outside the scrolling content so the sprites stay put
                 while the rom list moves. */}
             <div className="scene" aria-hidden="true">
-              <Scenery />
+              <BattleScene />
               <span className="sprite sprite--shoot" />
               <span className="sprite sprite--fly sprite--fly1" />
               <span className="sprite sprite--fly sprite--fly2" />
-              <BattleScene />
             </div>
             <div className="cart__content">
               {content}

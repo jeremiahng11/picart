@@ -27,7 +27,8 @@ test('the cycle wraps rather than running off the end', () => {
   expect(sceneAt(-1)).toEqual(sceneAt(15));
 });
 
-test('the original night scene is still in the rotation', () => {
+test('the original night scene is still in the rotation, with a day of its own', () => {
   expect(BIOMES).toContain('plains');
+  expect(sceneAt(0)).toEqual({ biome: 'plains', phase: 'day' });
   expect(sceneAt(1)).toEqual({ biome: 'plains', phase: 'night' });
 });

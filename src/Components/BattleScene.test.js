@@ -538,3 +538,48 @@ test('casting leaves a visible effect at the target', () => {
   expect(after.effects.length).toBeGreaterThan(0);
   expect(POWERS.some((p) => p.key === after.effects[0].key)).toBe(true);
 });
+
+test('a cleared and looted field sends the hero travelling', () => {
+  let s = { ...heroAt(50, { cooldown: 999 }), monsters: [], drops: [], waveGap: 0 };
+  for (let i = 0; i < 20 && !s.travelling; i++) {
+    s = withRandom(0.9, () => step(s));
+    s.drops = [];
+  }
+  expect(s.travelling).toBe(true);
+});
+
+test('loot still on the ground keeps him from moving on', () => {
+  let s = {
+    ...heroAt(50, { cooldown: 999 }),
+    monsters: [],
+    waveGap: 40,
+    drops: [{ kind: 'coin', label: 'GOLD', color: '#ffd76b', id: 21, x: 95, born: 0 }],
+  };
+  s = withRandom(0.9, () => step(s));
+  expect(s.travelling).toBe(false);
+});
+
+test('walking off the edge advances the scene and brings a fresh wave', () => {
+  let s = { ...heroAt(90, { cooldown: 999 }), monsters: [], drops: [], travelling: true, journey: 3 };
+
+  for (let i = 0; i < 12 && s.journey === 3; i++) {
+    s = withRandom(0.5, () => step(s));
+  }
+
+  expect(s.journey).toBe(4);
+  expect(s.travelling).toBe(false);
+  expect(s.hero.x).toBeLessThan(20);
+  expect(s.monsters.length).toBeGreaterThanOrEqual(1);
+});
+
+test('a monster still standing stops the journey', () => {
+  const s = withRandom(0.9, () => step({
+    ...heroAt(50, { cooldown: 999 }),
+    monsters: [monster('slime', 80)],
+    drops: [],
+    waveGap: 40,
+    travelling: false,
+  }));
+
+  expect(s.travelling).toBe(false);
+});

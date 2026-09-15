@@ -870,7 +870,11 @@ body {
   border-radius: 5px;
 }
 
-.sprite { position: absolute; display: block; }
+.sprite { position: absolute; display: block; transition: opacity 1.2s ease; }
+
+/* Fireflies and shooting stars belong to the dark; the battle publishes which
+   phase is showing so they can fade out at dawn. */
+.bs[data-phase="day"] ~ .sprite { opacity: 0; }
 .sprite svg { display: block; width: 100%; height: 100%; }
 
 /* Hops along the ground band. The hop is a transform so it can run alongside
@@ -1184,11 +1188,17 @@ body {
 
 .bs {
   position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The fighting happens on a strip near the ground; the scenery fills the rest. */
+.bs-field {
+  position: absolute;
   left: 0;
   right: 0;
   bottom: 3%;
   height: 52px;
-  pointer-events: none;
 }
 
 .bs-unit {

@@ -24,6 +24,7 @@
  */
 
 import React from "react";
+import Scenery, { sceneAt } from "./Scenery";
 
 const TICK_MS = 165;
 
@@ -283,6 +284,8 @@ export function initialState() {
     floats: [],
     effects: [],
     waveGap: 0,
+    journey: 0,
+    travelling: false,
   };
 }
 
@@ -346,6 +349,8 @@ export function step(prev) {
   let effects = (prev.effects || []).filter((e) => tick - e.born < EFFECT_LIFE);
   let drops = prev.drops;
   let waveGap = prev.waveGap;
+  let journey = prev.journey || 0;
+  let travelling = prev.travelling || false;
 
   let hero = advance(prev.hero);
   let monsters = prev.monsters.map(advance);
@@ -381,6 +386,8 @@ export function step(prev) {
       effects,
       drops: [],
       waveGap: 0,
+      journey,
+      travelling: false,
       hero: {
         ...hero,
         x: 16,
@@ -429,12 +436,31 @@ export function step(prev) {
         contents: rollChestContents(),
       });
     }
-    if (waveGap >= WAVE_GAP) {
-      monsters = monsters.concat(spawnWave(hero.x));
-      waveGap = 0;
+    // Nothing left to fight and nothing left to pick up, so travel on.
+    if (drops.length === 0 && waveGap >= WAVE_GAP) {
+      travelling = true;
     }
   } else {
     waveGap = 0;
+    travelling = false;
+  }
+
+  if (travelling && !hero.dead) {
+    hero.state = "walk";
+    hero.face = 1;
+    hero.x += hero.speed * 1.4;
+
+    if (hero.x >= FIELD_MAX) {
+      journey += 1;
+      hero.x = FIELD_MIN;
+      monsters = spawnWave(hero.x);
+      travelling = false;
+      waveGap = 0;
+      const { biome, phase } = sceneAt(journey);
+      floats = addFloat(floats, tick, biome.toUpperCase() + " " + phase.toUpperCase(), "#ffd76b", hero.x);
+    }
+
+    return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling };
   }
 
   // Hero: fetch loot when the field allows it, otherwise close on the nearest
@@ -639,7 +665,7 @@ export function step(prev) {
     drops = kept;
   }
 
-  return { tick, hero, monsters, drops, floats, effects, waveGap };
+  return { tick, hero, monsters, drops, floats, effects, waveGap, journey, travelling };
 }
 
 function prefersReducedMotion() {
@@ -971,7 +997,10 @@ export default function BattleScene() {
   const { hero, monsters, drops, floats, effects } = state;
 
   return (
-    <div className="bs" aria-hidden="true">
+    <div className="bs" aria-hidden="true" data-phase={sceneAt(state.journey).phase}>
+      <Scenery step={state.journey} />
+
+      <div className="bs-field">
       {drops.map((d) => (
         <span
           key={d.id}
@@ -1029,6 +1058,8 @@ export default function BattleScene() {
           {f.text}
         </span>
       ))}
+
+      </div>
 
       {showSheet && <StatusSheet hero={hero} onClose={() => setShowSheet(false)} />}
     </div>

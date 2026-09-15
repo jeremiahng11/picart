@@ -18,9 +18,9 @@
 /* Scrolling scenery behind the battle. Eight biomes, each with a day and a
  * night palette, giving sixteen looks that the journey walks through in order.
  *
- * The artwork is entirely gradient layers declared in App.css, so this file
- * only decides which biome and phase are showing and keeps the outgoing one
- * around long enough to cross-fade.
+ * The artwork is entirely gradient layers declared in App.css. Which scene is
+ * showing is decided by the battle: the hero walks off the edge of one and into
+ * the next, so travel advances the journey rather than a clock.
  */
 
 import React from "react";
@@ -38,8 +38,6 @@ export const BIOMES = [
 
 export const PHASES = ["day", "night"];
 
-const PHASE_MS = 24000;
-
 // Each step of the journey is one biome in one phase, so the cycle runs
 // forest day, forest night, desert day, and so on.
 export function sceneAt(step) {
@@ -50,26 +48,7 @@ export function sceneAt(step) {
   };
 }
 
-function prefersReducedMotion() {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
-
-export default function Scenery() {
-  const [step, setStep] = React.useState(0);
-  const still = React.useMemo(prefersReducedMotion, []);
-
-  React.useEffect(() => {
-    if (still) {
-      return undefined;
-    }
-    const handle = setInterval(() => setStep((s) => s + 1), PHASE_MS);
-    return () => clearInterval(handle);
-  }, [still]);
-
+export default function Scenery({ step }) {
   // The outgoing scene stays mounted underneath so the incoming one can fade
   // over it rather than snapping.
   const showing = step === 0 ? [step] : [step - 1, step];
