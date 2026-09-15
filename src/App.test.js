@@ -11,6 +11,6 @@ test('offers the offline build as a fallback', () => {
   render(<App />);
   expect(screen.getByRole('link', { name: /here/i })).toHaveAttribute(
     'href',
-    expect.stringContaining('releases')
+    expect.stringContaining('github.com/jeremiahng11/picart')
   );
 });

@@ -58,7 +58,7 @@ class GbCartridge extends React.Component {
 
   static defaultProps = {
     ReleasesURL: "https://github.com/shilga/rp2040-gameboy-cartridge-firmware/releases",
-    WebappReleasesURL: "https://github.com/shilga/jkl-cartridge-webapp/releases"
+    WebappReleasesURL: "https://github.com/jeremiahng11/picart"
   };
 
   state = {
