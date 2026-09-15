@@ -17,10 +17,13 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+
+// Imported before App so that App.css, which App pulls in, is emitted after
+// Bootstrap and can override it without needing !important everywhere.
+import 'bootstrap/dist/css/bootstrap.min.css';
+
 import App from './App';
 import reportWebVitals from './reportWebVitals';
-
-import 'bootstrap/dist/css/bootstrap.min.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

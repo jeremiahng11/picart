@@ -16,13 +16,10 @@
  */
 
 import React from 'react';
-import Button from 'react-bootstrap/Button';
 import Communication from './communication'
 import AddNewRomModal from "./Components/AddNewRomModal";
 import ConfirmationModal from './Components/ConfirmationModal';
 import SavegameModal from './Components/SavegameModal';
-import ListGroup from 'react-bootstrap/ListGroup';
-import ProgressBar from 'react-bootstrap/ProgressBar';
 import { Trash3Fill, Save2Fill } from "react-bootstrap-icons";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -296,85 +293,193 @@ class GbCartridge extends React.Component {
     this.setState({ showConfirmationModal: false });
   }
 
-  render() {
-    if (navigator.usb) {
-      if (this.state.state === this.StateConnect) {
-        return (
-          <div className="connect">
-            {/* Also the landing spot after a failed read, so errors raised
-                while connecting have somewhere to render. */}
-            <ToastContainer />
-            <img src={jklLogo} alt="pixel JKL logo" className="gameboy" />
-            <h2 className="cover-heading">JKL Gameboy Cartridge</h2>
-            <p className="lead">Connect your Cartridge and manage your ROMs</p>
-            <hr />
-            <Button onClick={(e) => this.ConnectButtonHandler()} className="btn btn-lg btn-secondary">Connect</Button>
-            <br />
-            <small>Version: {process.env.REACT_APP_VERSION}</small>
+  romMeta(romInfo) {
+    const parts = [];
 
-            {!isElectron() && <div className="offlineInfo"><hr />Find the offline version <a target="_blank" rel="noopener noreferrer" href={this.props.WebappReleasesURL}>here</a>.</div>}
-          </div>
-        )
-      } else if (this.state.state === this.StateConnecting) {
-        return (<div className="connect">
-          <ToastContainer />
-          <h2>Connecting...</h2>
-        </div>)
-      } else if (this.state.state === this.StateRetrievingInfo) {
-        return (<div className="connect">
-          <ToastContainer />
-          <h2>Downloading Info...</h2>
-        </div>)
-      } else if (this.state.state === this.StateConnected) {
-        return (
-          <div className="connect">
-            <ToastContainer />
-            <hr />
-            <ListGroup>
-              {this.state.romInfos.map((romInfo, idx) => (
-                <ListGroup.Item key={idx} className="d-flex justify-content-between">
-                  <div className="ms-2 me-auto">
-                    {romInfo.name}
-                  </div>
-                  {romInfo.numRomBanks !== 0 ? (
-                    <div className='me-2 ms-auto'>
-                      {romInfo.numRomBanks} banks
-                    </div>
-                  ) : ''}
-                  <Button data-index={idx} onClick={this.openSaveGameModal} disabled={(romInfo.numRamBanks === 0) && (romInfo.mbc !== 2)}><Save2Fill /></Button>
-                  <Button variant='danger' data-index={idx} onClick={this.showDeleteConfirmationModal}><Trash3Fill /></Button>
-                </ListGroup.Item>
-              ))}
-            </ListGroup>
-            <hr />
-            <ProgressBar now={this.state.romUtilization.usedBanks} max={this.state.romUtilization.maxBanks} label={`${this.state.romUtilization.usedBanks} banks used (${this.state.romUtilization.maxBanks - this.state.romUtilization.usedBanks} free)`} /> <br />
-            <Button onClick={(e) => { this.setState({ openAddRomModal: true }); }} className="btn btn-lg btn-secondary">Add ROM</Button>
-            <hr />
-            JKL Cartridge FW {this.state.deviceInfo.swVersion.major}.{this.state.deviceInfo.swVersion.minor}.{this.state.deviceInfo.swVersion.patch} {this.state.deviceInfo.swVersion.buildType}.
-            Git <a target="_blank" rel="noopener noreferrer" href={"https://github.com/shilga/rp2040-gameboy-cartridge-firmware/commit/" + this.state.deviceInfo.swVersion.gitShort.toString(16)} >{this.state.deviceInfo.swVersion.gitShort.toString(16)}</a>
-            {(this.state.deviceInfo.swVersion.gitDirty) && "(dirty)"}
-            {(this.state.serialId) && " Serial " + this.state.serialId}
-            <hr />
-            <AddNewRomModal show={this.state.openAddRomModal} onHide={() => { this.setState({ openAddRomModal: false }); }} onRomAdded={this.refreshDeviceStatus} onError={this.displayError} comm={this.comm} availableBanks={this.state.romUtilization.maxBanks - this.state.romUtilization.usedBanks} />
-            <ConfirmationModal showModal={this.state.showConfirmationModal} confirmModal={this.deleteRom} hideModal={this.hideConfirmationModal} title="Delete confirmation" id={this.state.confirmationId} message={this.state.confirmationMessage} />
-            <SavegameModal show={this.state.showSavegameModal} onHide={() => { this.setState({ showSavegameModal: false }); }} onError={this.displayError} comm={this.comm} romInfo={this.state.activeRomListInfo} />
-          </div>
-        );
-      }
-
-      else {
-        return (
-          <div>Invalid state {this.state.state}</div>
-        )
-      }
-    } else {
-      return (
-        <div className="unsupportedBrowser">
-          <h2>Sorry, your browser does not support WebUSB!</h2>
-          <hr />Maybe you want to use the offline version which can be found <a target="_blank" rel="noopener noreferrer" href={this.props.WebappReleasesURL}>here</a>.
-        </div>
-      )
+    if (romInfo.numRomBanks !== 0) {
+      parts.push(romInfo.numRomBanks + " banks");
     }
+    if (romInfo.numRamBanks > 0) {
+      parts.push(romInfo.numRamBanks + (romInfo.numRamBanks === 1 ? " RAM bank" : " RAM banks"));
+    }
+    if (romInfo.mbc !== 0xFF) {
+      parts.push(romInfo.mbc === 0 ? "No MBC" : "MBC" + romInfo.mbc);
+    }
+
+    return parts.join(" \u00b7 ");
+  }
+
+  render() {
+    if (!navigator.usb) {
+      return (
+        <div className="app app--hero">
+          <main className="hero">
+            <img src={jklLogo} alt="JKL logo" className="hero__logo" />
+            <h1 className="hero__title">Sorry, your browser does not support WebUSB!</h1>
+            <p className="hero__lead">
+              This app talks to the cartridge over WebUSB, which needs a Chromium
+              browser such as Chrome or Edge, served over HTTPS.
+            </p>
+            <p className="hero__offline">
+              Maybe you want to use the offline version which can be found{" "}
+              <a target="_blank" rel="noopener noreferrer" href={this.props.WebappReleasesURL}>here</a>.
+            </p>
+          </main>
+        </div>
+      );
+    }
+
+    if (this.state.state === this.StateConnect) {
+      return (
+        <div className="app app--hero">
+          {/* Also the landing spot after a failed read, so errors raised while
+              connecting have somewhere to render. */}
+          <ToastContainer />
+          <main className="hero">
+            <img src={jklLogo} alt="JKL logo" className="hero__logo" />
+            <h1 className="hero__title">JKL Gameboy Cartridge</h1>
+            <p className="hero__lead">Connect your cartridge to manage its ROMs and savegames.</p>
+            <button type="button" className="btn-jkl btn-jkl--lg" onClick={() => this.ConnectButtonHandler()}>
+              Connect
+            </button>
+            <p className="hero__version">Version {process.env.REACT_APP_VERSION}</p>
+            {!isElectron() && (
+              <p className="hero__offline">
+                Find the offline version{" "}
+                <a target="_blank" rel="noopener noreferrer" href={this.props.WebappReleasesURL}>here</a>.
+              </p>
+            )}
+          </main>
+        </div>
+      );
+    }
+
+    if (this.state.state === this.StateConnecting || this.state.state === this.StateRetrievingInfo) {
+      return (
+        <div className="app app--hero">
+          <ToastContainer />
+          <main className="hero">
+            <span className="spinner" aria-hidden="true" />
+            <p className="hero__status">
+              {this.state.state === this.StateConnecting ? "Connecting to cartridge..." : "Reading cartridge..."}
+            </p>
+          </main>
+        </div>
+      );
+    }
+
+    if (this.state.state === this.StateConnected) {
+      const used = this.state.romUtilization.usedBanks;
+      const max = this.state.romUtilization.maxBanks;
+      const free = max - used;
+      const filled = max > 0 ? Math.min(100, (used / max) * 100) : 0;
+      const sw = this.state.deviceInfo.swVersion;
+      const gitShort = sw.gitShort.toString(16);
+
+      return (
+        <div className="app">
+          <ToastContainer />
+
+          <header className="topbar">
+            <img src={jklLogo} alt="" className="topbar__logo" />
+            <span className="topbar__name">JKL Cartridge</span>
+            <span className="topbar__version">v{process.env.REACT_APP_VERSION}</span>
+          </header>
+
+          <main>
+            <section className="panel">
+              <div className="storage__head">
+                <h2 className="panel__title">Storage</h2>
+                <span className="storage__count">{used} / {max} banks</span>
+              </div>
+              <div
+                className="meter"
+                role="progressbar"
+                aria-label="Cartridge storage used"
+                aria-valuenow={used}
+                aria-valuemin={0}
+                aria-valuemax={max}
+              >
+                <div className="meter__fill" style={{ width: filled + "%" }} />
+              </div>
+              <p className="storage__free">{free} banks free</p>
+            </section>
+
+            <section className="roms">
+              <h2 className="panel__title roms__title">ROMs</h2>
+              {this.state.romInfos.length === 0 ? (
+                <p className="roms__empty">No ROMs on this cartridge yet.</p>
+              ) : (
+                this.state.romInfos.map((romInfo, idx) => (
+                  <article className="rom" key={idx}>
+                    <div className="rom__main">
+                      <h3 className="rom__name">{romInfo.name}</h3>
+                      <p className="rom__meta">{this.romMeta(romInfo)}</p>
+                    </div>
+                    <div className="rom__actions">
+                      <button
+                        type="button"
+                        className="iconbtn"
+                        title="Manage savegame"
+                        aria-label={"Manage savegame for " + romInfo.name}
+                        data-index={idx}
+                        onClick={this.openSaveGameModal}
+                        disabled={(romInfo.numRamBanks === 0) && (romInfo.mbc !== 2)}
+                      >
+                        <Save2Fill />
+                      </button>
+                      <button
+                        type="button"
+                        className="iconbtn iconbtn--danger"
+                        title="Delete ROM"
+                        aria-label={"Delete " + romInfo.name}
+                        data-index={idx}
+                        onClick={this.showDeleteConfirmationModal}
+                      >
+                        <Trash3Fill />
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </section>
+
+            <button
+              type="button"
+              className="btn-jkl btn-jkl--block"
+              onClick={() => { this.setState({ openAddRomModal: true }); }}
+            >
+              Add ROM
+            </button>
+          </main>
+
+          <footer className="footer">
+            <span>Firmware {sw.major}.{sw.minor}.{sw.patch} {sw.buildType}</span>
+            <span className="footer__sep">&middot;</span>
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              href={"https://github.com/shilga/rp2040-gameboy-cartridge-firmware/commit/" + gitShort}
+            >
+              {gitShort}
+            </a>
+            {sw.gitDirty && <span className="footer__dirty">dirty</span>}
+            {this.state.serialId && (
+              <>
+                <span className="footer__sep">&middot;</span>
+                <span>Serial {this.state.serialId}</span>
+              </>
+            )}
+          </footer>
+
+          <AddNewRomModal show={this.state.openAddRomModal} onHide={() => { this.setState({ openAddRomModal: false }); }} onRomAdded={this.refreshDeviceStatus} onError={this.displayError} comm={this.comm} availableBanks={free} />
+          <ConfirmationModal showModal={this.state.showConfirmationModal} confirmModal={this.deleteRom} hideModal={this.hideConfirmationModal} title="Delete confirmation" id={this.state.confirmationId} message={this.state.confirmationMessage} />
+          <SavegameModal show={this.state.showSavegameModal} onHide={() => { this.setState({ showSavegameModal: false }); }} onError={this.displayError} comm={this.comm} romInfo={this.state.activeRomListInfo} />
+        </div>
+      );
+    }
+
+    return <div className="app">Invalid state {this.state.state}</div>;
   }
 }
 

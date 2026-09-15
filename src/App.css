@@ -15,27 +15,395 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-.connect,
-.unsupportedBrowser {
-  max-width: 44rem;
+:root {
+  /* Sampled from the logo artwork. */
+  --jkl-pink: #d73373;
+  --jkl-pink-deep: #cc306d;
+  --jkl-maroon: #af285d;
+  --jkl-pink-soft: #fbe7f0;
+
+  --bg: #f6f3f4;
+  --surface: #ffffff;
+  --border: #e9e0e4;
+  --text: #241a1f;
+  --muted: #7b6a72;
+  --danger: #c0392b;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 1px 2px rgba(36, 26, 31, 0.05), 0 6px 18px rgba(36, 26, 31, 0.06);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 46rem;
   margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.app--hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
   padding: 2rem 1rem;
+}
+
+/* ---- hero: connect, status and unsupported-browser screens ---- */
+
+.hero {
+  width: 100%;
+  max-width: 28rem;
   text-align: center;
 }
 
-/* The image is served at 400px so it stays sharp on high-density displays. */
-.gameboy {
+.hero__logo {
   width: 100%;
-  max-width: 12.5rem;
+  max-width: 9.5rem;
   height: auto;
+  margin-bottom: 1.25rem;
 }
 
-.cover-heading {
-  margin-top: 1rem;
+.hero__title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.5rem;
 }
 
-.offlineInfo {
-  margin-top: 1.5rem;
+.hero__lead {
+  color: var(--muted);
+  margin: 0 0 1.75rem;
+  line-height: 1.5;
+}
+
+.hero__status {
+  color: var(--muted);
+  margin: 1rem 0 0;
+}
+
+.hero__version {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  margin: 1.25rem 0 0;
+}
+
+.hero__offline {
+  color: var(--muted);
   font-size: 0.875rem;
-  opacity: 0.75;
+  margin: 0.5rem 0 0;
+}
+
+.hero a,
+.footer a {
+  color: var(--jkl-maroon);
+  text-decoration-color: rgba(175, 40, 93, 0.35);
+  text-underline-offset: 2px;
+}
+
+.hero a:hover,
+.footer a:hover {
+  color: var(--jkl-pink);
+}
+
+.spinner {
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--border);
+  border-top-color: var(--jkl-pink);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2.4s; }
+}
+
+/* ---- top bar ---- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.topbar__logo {
+  width: 2rem;
+  height: 2rem;
+}
+
+.topbar__name {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.topbar__version {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- panels ---- */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.125rem 1.25rem;
+  box-shadow: var(--shadow);
+}
+
+.panel__title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ---- storage meter ---- */
+
+.storage__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.storage__count {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter {
+  height: 0.625rem;
+  border-radius: 999px;
+  background: var(--jkl-pink-soft);
+  overflow: hidden;
+}
+
+.meter__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--jkl-pink), var(--jkl-maroon));
+  transition: width 0.3s ease;
+}
+
+.storage__free {
+  margin: 0.625rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+/* ---- rom list ---- */
+
+.roms {
+  margin: 1.5rem 0;
+}
+
+.roms__title {
+  margin-bottom: 0.625rem;
+}
+
+.roms__empty {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted);
+  margin: 0;
+}
+
+.rom {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.875rem 1rem;
+  box-shadow: var(--shadow);
+}
+
+.rom + .rom {
+  margin-top: 0.625rem;
+}
+
+.rom__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.rom__name {
+  font-size: 1rem;
+  font-weight: 620;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rom__meta {
+  margin: 0.1875rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rom__actions {
+  display: flex;
+  gap: 0.4375rem;
+  flex-shrink: 0;
+}
+
+/* ---- buttons ---- */
+
+.btn-jkl {
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--jkl-pink);
+  color: #fff;
+  font-weight: 600;
+  padding: 0.625rem 1.25rem;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.btn-jkl:hover { background: var(--jkl-pink-deep); }
+.btn-jkl:active { transform: translateY(1px); }
+
+.btn-jkl:focus-visible,
+.iconbtn:focus-visible {
+  outline: 2px solid var(--jkl-pink);
+  outline-offset: 2px;
+}
+
+.btn-jkl--lg {
+  font-size: 1.0625rem;
+  padding: 0.75rem 2rem;
+}
+
+.btn-jkl--block {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+}
+
+.iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--jkl-maroon);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.iconbtn:hover:not(:disabled) {
+  background: var(--jkl-pink-soft);
+  border-color: var(--jkl-pink);
+}
+
+.iconbtn:disabled {
+  color: #c4b8be;
+  cursor: not-allowed;
+}
+
+.iconbtn--danger { color: var(--danger); }
+
+.iconbtn--danger:hover:not(:disabled) {
+  background: #fdecea;
+  border-color: var(--danger);
+}
+
+/* ---- footer ---- */
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.footer__sep { opacity: 0.5; }
+
+.footer__dirty {
+  background: var(--jkl-pink-soft);
+  color: var(--jkl-maroon);
+  border-radius: 999px;
+  padding: 0.0625rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+/* ---- bootstrap overrides for the modals ---- */
+
+.modal-content {
+  border: 0;
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(36, 26, 31, 0.18);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--border);
+  font-weight: 650;
+  padding: 1rem 1.25rem;
+}
+
+.modal-body { padding: 1.25rem; }
+
+.modal-footer {
+  border-top: 1px solid var(--border);
+  padding: 0.875rem 1.25rem;
+}
+
+.modal .btn-primary {
+  --bs-btn-bg: var(--jkl-pink);
+  --bs-btn-border-color: var(--jkl-pink);
+  --bs-btn-hover-bg: var(--jkl-pink-deep);
+  --bs-btn-hover-border-color: var(--jkl-pink-deep);
+  --bs-btn-active-bg: var(--jkl-maroon);
+  --bs-btn-active-border-color: var(--jkl-maroon);
+  --bs-btn-disabled-bg: #e3cdd8;
+  --bs-btn-disabled-border-color: #e3cdd8;
+  font-weight: 600;
+}
+
+.modal .progress { background: var(--jkl-pink-soft); }
+
+.modal .progress-bar {
+  background: linear-gradient(90deg, var(--jkl-pink), var(--jkl-maroon));
+}
+
+.modal .form-control:focus {
+  border-color: var(--jkl-pink);
+  box-shadow: 0 0 0 0.2rem rgba(215, 51, 115, 0.18);
 }
