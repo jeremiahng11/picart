@@ -88,7 +88,17 @@ export const BOSSES = [
   { kind: "golem", color: "#8d9a86", maxHp: 150, dmg: [9, 15], speed: 0.4, reach: 10, cd: 11, move: "walk", boss: true },
 ];
 
-export const BOSS_CHANCE = 0.12;
+// Nothing this large comes looking for a hero in cloth. Bosses stay away until
+// he has some levels behind him, then grow steadily more likely.
+export const BOSS_MIN_LEVEL = 5;
+export const BOSS_CHANCE_CAP = 0.2;
+
+export function bossChance(level) {
+  if (level < BOSS_MIN_LEVEL) {
+    return 0;
+  }
+  return Math.min(BOSS_CHANCE_CAP, 0.04 + (level - BOSS_MIN_LEVEL) * 0.02);
+}
 
 const DROPS = [
   { kind: "potion", label: "+HP", color: "#ff6b8a" },
@@ -120,8 +130,8 @@ export function rollWaveCount() {
   return WAVES_MIN + Math.floor(Math.random() * (WAVES_MAX - WAVES_MIN + 1));
 }
 
-export function spawnWave(heroX = 16) {
-  if (Math.random() < BOSS_CHANCE) {
+export function spawnWave(heroX = 16, level = 1) {
+  if (Math.random() < bossChance(level)) {
     const def = pick(BOSSES);
     const x = heroX > (FIELD_MIN + FIELD_MAX) / 2 ? FIELD_MIN + 6 : FIELD_MAX - 6;
     return [{
@@ -521,7 +531,7 @@ export function initialState() {
       dead: false,
       respawn: 0,
     },
-    monsters: spawnWave(16),
+    monsters: spawnWave(16, 1),
     drops: [],
     floats: [],
     effects: [],
@@ -647,7 +657,7 @@ export function step(prev) {
         state: "idle",
         respawn: 0,
       },
-      monsters: spawnWave(16),
+      monsters: spawnWave(16, hero.level),
     };
   }
 
@@ -697,7 +707,7 @@ export function step(prev) {
     if (wanted.length === 0 && waveGap >= WAVE_PAUSE) {
       if (wavesLeft > 0) {
         // The scene has more to throw at him, so he stays put.
-        monsters = monsters.concat(spawnWave(hero.x));
+        monsters = monsters.concat(spawnWave(hero.x, hero.level));
         wavesLeft -= 1;
         waveGap = 0;
       } else {
@@ -727,7 +737,7 @@ export function step(prev) {
       // The left property is eased, which would drag him back across the frame
       // in view. This marks the one frame that must not animate.
       hero.warp = tick;
-      monsters = spawnWave(FIELD_MIN + 20);
+      monsters = spawnWave(FIELD_MIN + 20, hero.level);
       wavesLeft = rollWaveCount() - 1;
       const arrival = sceneAt(journey);
       floats = addFloat(
@@ -786,13 +796,6 @@ export function step(prev) {
       hero.face = gap >= 0 ? 1 : -1;
       hero.state = "walk";
       hero.x = clamp(hero.x + Math.sign(gap) * hero.speed, FIELD_MIN, FIELD_MAX);
-    } else if (hurt && !potion && target && Math.abs(target.x - hero.x) <= HERO_REACH + 5) {
-      // Nothing to drink and badly hurt, so give ground rather than trade blows.
-      // He keeps facing the monster while backing away.
-      const away = Math.sign(hero.x - target.x) || 1;
-      hero.face = target.x >= hero.x ? 1 : -1;
-      hero.state = "walk";
-      hero.x = clamp(hero.x + away * hero.speed, FIELD_MIN, FIELD_MAX);
     } else if (target) {
       const gap = target.x - hero.x;
       hero.face = gap >= 0 ? 1 : -1;

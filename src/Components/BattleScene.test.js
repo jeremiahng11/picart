@@ -1,6 +1,6 @@
 import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
-  MONSTERS, BOSSES, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
+  MONSTERS, BOSSES, bossChance, BOSS_MIN_LEVEL, BOSS_CHANCE_CAP, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
   itemScore, worthTaking,
   HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
@@ -702,16 +702,17 @@ test('a wounded hero goes for a potion before anything else', () => {
   expect(after.hero.x).toBeLessThan(50);
 });
 
-test('a wounded hero with nothing to drink gives ground instead of trading blows', () => {
+test('a wounded hero with nothing to drink stands his ground', () => {
   const state = {
-    ...heroAt(50, { hp: 6, cooldown: 999 }),
+    ...heroAt(50, { hp: 6, cooldown: 0 }),
     monsters: [monster('imp', 55)],
     drops: [],
   };
   const after = withRandom(0.9, () => step(state));
 
-  expect(after.hero.x).toBeLessThan(50);
-  expect(after.hero.face).toBe(1);
+  // He does not back away; he swings, and trusts his wounds to close later.
+  expect(after.hero.x).toBe(50);
+  expect(after.monsters[0].hp).toBeLessThan(after.monsters[0].maxHp);
 });
 
 test('a healthy hero still closes in rather than retreating', () => {
@@ -886,7 +887,7 @@ test('a boss is rare, alone, and far sturdier than a common monster', () => {
   let bossWaves = 0;
   let normalWaves = 0;
   for (let i = 0; i < 600; i++) {
-    const wave = spawnWave(50);
+    const wave = spawnWave(50, 40);
     if (wave.some((m) => m.boss)) {
       bossWaves += 1;
       expect(wave).toHaveLength(1);
@@ -909,4 +910,37 @@ test('a felled boss always leaves a hoard', () => {
   const after = withRandom(0.99, () => step(state));
 
   expect(after.drops.some((d) => d.kind === 'chest')).toBe(true);
+});
+
+
+test('no boss comes looking for a hero who has barely started', () => {
+  expect(bossChance(1)).toBe(0);
+  expect(bossChance(BOSS_MIN_LEVEL - 1)).toBe(0);
+
+  for (let i = 0; i < 800; i++) {
+    expect(spawnWave(50, 1).some((m) => m.boss)).toBe(false);
+  }
+});
+
+test('bosses become likelier as the hero grows, up to a ceiling', () => {
+  expect(bossChance(BOSS_MIN_LEVEL)).toBeGreaterThan(0);
+  expect(bossChance(20)).toBeGreaterThan(bossChance(BOSS_MIN_LEVEL));
+  expect(bossChance(99)).toBeLessThanOrEqual(BOSS_CHANCE_CAP);
+  expect(bossChance(99)).toBe(BOSS_CHANCE_CAP);
+});
+
+test('a seasoned hero does meet them', () => {
+  let seen = false;
+  for (let i = 0; i < 800 && !seen; i++) {
+    seen = spawnWave(50, 30).some((m) => m.boss);
+  }
+  expect(seen).toBe(true);
+});
+
+test('a new game opens without a boss on the field', () => {
+  for (let i = 0; i < 200; i++) {
+    const fresh = initialState();
+    expect(fresh.hero.level).toBe(1);
+    expect(fresh.monsters.some((m) => m.boss)).toBe(false);
+  }
 });
