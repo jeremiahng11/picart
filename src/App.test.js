@@ -59,7 +59,7 @@ test('reports storage as used, total and free', () => {
   renderConnected();
 
   expect(screen.getByText('192 / 512 banks')).toBeInTheDocument();
-  expect(screen.getByText('320 banks free')).toBeInTheDocument();
+  expect(screen.getByText('320 free')).toBeInTheDocument();
   expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '192');
 });
 

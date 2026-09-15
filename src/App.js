@@ -403,8 +403,8 @@ class GbCartridge extends React.Component {
           <main>
             <section className="panel">
               <div className="storage__head">
-                <h2 className="panel__title">Storage</h2>
                 <span className="storage__count">{used} / {max} banks</span>
+                <span className="storage__free">{free} free</span>
               </div>
               <div
                 className="meter"
@@ -416,11 +416,9 @@ class GbCartridge extends React.Component {
               >
                 <div className="meter__fill" style={{ width: filled + "%" }} />
               </div>
-              <p className="storage__free">{free} banks free</p>
             </section>
 
             <section className="roms">
-              <h2 className="panel__title roms__title">ROMs</h2>
               {this.state.romInfos.length === 0 ? (
                 <p className="roms__empty">No ROMs on this cartridge yet.</p>
               ) : (
