@@ -125,5 +125,6 @@ test('equipment slots are listed with their fallbacks when nothing is found yet'
   expect(screen.getByText('WORN SHOES')).toBeInTheDocument();
   expect(screen.getAllByText('BARE HANDS').length).toBeGreaterThan(0);
   expect(screen.getByText('NONE')).toBeInTheDocument();
+  expect(screen.getByText('BARE HEAD')).toBeInTheDocument();
   expect(screen.getByText(/LV 1 \/ 99/)).toBeInTheDocument();
 });

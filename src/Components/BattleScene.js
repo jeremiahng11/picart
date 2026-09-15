@@ -214,15 +214,18 @@ export const COMMON_ITEMS = [
 // four relics that raise a stat for good.
 // Six slots. He starts in nothing but clothes with a worn sword, so every piece
 // found is a visible change.
-export const SLOTS = ["weapon", "shield", "top", "legs", "boots", "gloves"];
+export const SLOTS = ["weapon", "shield", "helm", "top", "legs", "boots", "gloves"];
 
 export const STARTER_WEAPON = {
   key: "worn-sword", name: "WORN SWORD", type: "weapon",
   tier: 0, power: 0, element: null, color: "#b9c2de",
 };
 
+// tier drives what a piece looks like; the stats vary within a tier, so a
+// rusted mail coif and a fine one share a silhouette but not a value.
 export const SPECIAL_ITEMS = [
-  // --- weapons, three of them elemental ---
+  // --- weapons ---
+  { key: "rusted-sword", name: "RUSTED SWORD", type: "weapon", tier: 1, power: 1, element: null, color: "#8a8570" },
   { key: "iron-sword", name: "IRON SWORD", type: "weapon", tier: 1, power: 2, element: null, color: "#c9cfdd" },
   { key: "keen-blade", name: "KEEN BLADE", type: "weapon", tier: 2, power: 3, element: null, color: "#eef2ff" },
   { key: "flame-sword", name: "FLAME SWORD", type: "weapon", tier: 3, power: 5, element: "flame", color: "#ff9b4a" },
@@ -231,37 +234,118 @@ export const SPECIAL_ITEMS = [
   { key: "greatsword", name: "GREATSWORD", type: "weapon", tier: 6, power: 9, element: "holy", color: "#ffd76b" },
 
   // --- shields ---
+  { key: "plank", name: "PLANK SHIELD", type: "shield", tier: 1, defence: 0, maxHp: 2, color: "#8a6f4a" },
   { key: "buckler", name: "BUCKLER", type: "shield", tier: 1, defence: 1, color: "#c9962b" },
   { key: "kite", name: "KITE SHIELD", type: "shield", tier: 2, defence: 2, color: "#cfd6e6" },
   { key: "tower", name: "TOWER SHIELD", type: "shield", tier: 3, defence: 3, maxHp: 8, color: "#ffd76b" },
 
+  // --- helms, none worn to begin with ---
+  { key: "helm-cap", name: "CLOTH CAP", type: "helm", tier: 1, defence: 0, maxHp: 2, color: "#8a6f4a" },
+  { key: "helm-hood", name: "LEATHER HOOD", type: "helm", tier: 1, defence: 1, maxHp: 3, color: "#a9713f" },
+  { key: "helm-iron", name: "IRON HELM", type: "helm", tier: 2, defence: 2, maxHp: 5, color: "#9aa8c4" },
+  { key: "helm-knight", name: "KNIGHT HELM", type: "helm", tier: 3, defence: 3, maxHp: 8, color: "#cfd6e6" },
+  { key: "helm-great", name: "GREAT HELM", type: "helm", tier: 3, defence: 4, maxHp: 12, color: "#ffd76b" },
+
   // --- body ---
+  { key: "top-rags", name: "RAGGED SHIRT", type: "top", tier: 1, defence: 0, maxHp: 2, color: "#8a6f4a" },
   { key: "top-leather", name: "LEATHER JERKIN", type: "top", tier: 1, defence: 1, maxHp: 6, color: "#a9713f" },
+  { key: "top-chain-rust", name: "RUSTED HAUBERK", type: "top", tier: 2, defence: 1, maxHp: 5, color: "#7d8496" },
   { key: "top-chain", name: "CHAIN HAUBERK", type: "top", tier: 2, defence: 2, maxHp: 12, color: "#9aa8c4" },
   { key: "top-plate", name: "PLATE CUIRASS", type: "top", tier: 3, defence: 3, maxHp: 20, color: "#eef2ff" },
 
   // --- legs ---
+  { key: "legs-rags", name: "TORN BREECHES", type: "legs", tier: 1, defence: 0, maxHp: 1, color: "#7d6a4a" },
   { key: "legs-leather", name: "LEATHER CHAPS", type: "legs", tier: 1, defence: 1, maxHp: 4, color: "#8a5f34" },
   { key: "legs-chain", name: "CHAIN LEGGINGS", type: "legs", tier: 2, defence: 1, maxHp: 8, color: "#8d99b5" },
   { key: "legs-plate", name: "PLATE GREAVES", type: "legs", tier: 3, defence: 2, maxHp: 12, color: "#dfe6f5" },
 
   // --- boots ---
+  { key: "boots-sandals", name: "WORN SANDALS", type: "boots", tier: 1, defence: 0, speed: 0.1, color: "#9a7f5a" },
   { key: "boots-leather", name: "TRAVEL BOOTS", type: "boots", tier: 1, defence: 0, speed: 0.25, color: "#8a5f34" },
   { key: "boots-chain", name: "MAIL BOOTS", type: "boots", tier: 2, defence: 1, speed: 0.15, color: "#8d99b5" },
   { key: "boots-plate", name: "STEEL SABATONS", type: "boots", tier: 3, defence: 2, maxHp: 4, color: "#dfe6f5" },
 
   // --- gloves ---
+  { key: "gloves-tattered", name: "TATTERED MITTS", type: "gloves", tier: 1, defence: 0, power: 0, color: "#8a6f4a" },
   { key: "gloves-leather", name: "LEATHER GLOVES", type: "gloves", tier: 1, defence: 0, power: 1, color: "#a9713f" },
   { key: "gloves-chain", name: "MAIL GAUNTLETS", type: "gloves", tier: 2, defence: 1, power: 1, color: "#8d99b5" },
   { key: "gloves-plate", name: "PLATE GAUNTLETS", type: "gloves", tier: 3, defence: 1, power: 2, color: "#dfe6f5" },
 
-  // --- spellbooks: he begins knowing flame only ---
+  // --- spellbooks ---
   { key: "tome-spark", name: "TOME: SPARK", type: "spell", grants: "spark", color: "#8fd7ff" },
   { key: "tome-frost", name: "TOME: FROST", type: "spell", grants: "frost", color: "#bfe9ff" },
   { key: "tome-quake", name: "TOME: QUAKE", type: "spell", grants: "quake", color: "#d9a066" },
   { key: "tome-nova", name: "TOME: NOVA", type: "spell", grants: "nova", color: "#ff6bd6" },
   { key: "tome-judge", name: "TOME: JUDGEMENT", type: "spell", grants: "judge", color: "#fff0a8" },
 ];
+
+// What a piece is worth, so a fine leather jerkin can beat a rusted hauberk that
+// merely looks heavier. Comparing tiers alone could not express that.
+export function itemScore(item) {
+  if (!item) {
+    return 0;
+  }
+  return (item.power || 0) * 3
+    + (item.defence || 0) * 3
+    + (item.maxHp || 0) * 0.5
+    + (item.speed || 0) * 8;
+}
+
+// Below this share of what he already wears, a piece is not worth stooping for.
+export const DISDAIN = 0.55;
+
+// How many of a consumable he will carry before leaving the rest.
+export const CARRY_LIMIT = 3;
+
+// Decides whether the hero bothers with something on the ground, the way a
+// player would: treasure always, consumables until his pack is full, and gear
+// only when it is new to him and better than what it would replace.
+export function worthTaking(hero, item) {
+  if (!item) {
+    return false;
+  }
+
+  if (item.kind === "chest" || item.kind === "coin") {
+    return true;
+  }
+
+  if (item.kind === "potion" || item.kind === "mana") {
+    const needed = item.kind === "potion" ? hero.hp < hero.maxHp : hero.mp < hero.maxMp;
+    if (needed) {
+      return true;
+    }
+    return hero.inventory.filter((i) => i.kind === item.kind).length < CARRY_LIMIT;
+  }
+
+  // A trophy is a curio: one is worth having, a second is not.
+  if (item.type === "trophy") {
+    return hero.bag.indexOf(item.key) === -1;
+  }
+
+  if (item.type === "spell") {
+    const known = hero.powers.indexOf(item.grants) !== -1;
+    const spare = hero.inventory.some((i) => i.key === item.key);
+    return !(known && spare);
+  }
+
+  if (SLOTS.indexOf(item.type) !== -1) {
+    const worn = hero.gear[item.type];
+
+    // He has no use for a second of something he is already carrying.
+    if (worn && worn.key === item.key) {
+      return false;
+    }
+    if (hero.inventory.some((i) => i.key === item.key)) {
+      return false;
+    }
+    if (!worn) {
+      return true;
+    }
+    return itemScore(item) >= itemScore(worn) * DISDAIN;
+  }
+
+  return true;
+}
 
 export const MAX_LEVEL = 99;
 
@@ -355,7 +439,7 @@ export function equip(hero, entry, push = () => {}) {
   const next = { ...hero, gear: { ...hero.gear } };
   const worn = next.gear[entry.type];
 
-  if (worn && worn.tier >= entry.tier) {
+  if (worn && itemScore(worn) >= itemScore(entry)) {
     next.inventory = next.inventory.concat(entry);
     push("SPARE " + entry.type.toUpperCase(), entry.color);
     return next;
@@ -396,10 +480,10 @@ export function reequip(hero) {
   for (const slot of SLOTS) {
     const best = next.inventory
       .filter((i) => i.type === slot)
-      .reduce((top, i) => (!top || i.tier > top.tier ? i : top), null);
+      .reduce((top, i) => (!top || itemScore(i) > itemScore(top) ? i : top), null);
 
     const worn = next.gear[slot];
-    if (best && (!worn || best.tier > worn.tier)) {
+    if (best && itemScore(best) > itemScore(worn)) {
       next = { ...next, inventory: next.inventory.filter((i) => i !== best) };
       next = equip(next, best);
     }
@@ -422,7 +506,7 @@ export function initialState() {
       weapon: 0,
       level: 1,
       xp: 0,
-      gear: { weapon: STARTER_WEAPON, shield: null, top: null, legs: null, boots: null, gloves: null },
+      gear: { weapon: STARTER_WEAPON, shield: null, helm: null, top: null, legs: null, boots: null, gloves: null },
       inventory: [],
       powers: BASE_POWERS.slice(),
       bag: [],
@@ -609,7 +693,8 @@ export function step(prev) {
         contents: rollChestContents(),
       });
     }
-    if (drops.length === 0 && waveGap >= WAVE_PAUSE) {
+    const wanted = drops.filter((d) => worthTaking(hero, d));
+    if (wanted.length === 0 && waveGap >= WAVE_PAUSE) {
       if (wavesLeft > 0) {
         // The scene has more to throw at him, so he stays put.
         monsters = monsters.concat(spawnWave(hero.x));
@@ -637,6 +722,8 @@ export function step(prev) {
     if (hero.x >= EXIT_X) {
       journey += 1;
       hero.x = ENTER_X;
+      // What he chose to leave behind stays behind.
+      drops = [];
       // The left property is eased, which would drag him back across the frame
       // in view. This marks the one frame that must not animate.
       hero.warp = tick;
@@ -670,7 +757,7 @@ export function step(prev) {
     const nearest = (list) =>
       list.slice().sort((a, b) => Math.abs(a.x - hero.x) - Math.abs(b.x - hero.x))[0];
 
-    const loot = nearest(drops);
+    const loot = nearest(drops.filter((d) => worthTaking(hero, d)));
     const hurt = hero.hp <= hero.maxHp * LOW_HP;
 
     // A potion in the pack is drunk before going looking for one on the ground.
@@ -865,7 +952,7 @@ export function step(prev) {
     const announced = [];
 
     for (const d of drops) {
-      if (Math.abs(d.x - hero.x) > PICKUP_RANGE) {
+      if (Math.abs(d.x - hero.x) > PICKUP_RANGE || !worthTaking(hero, d)) {
         kept.push(d);
         continue;
       }
@@ -913,6 +1000,13 @@ const LEG_COLOURS = ["#6b5a3e", "#8a5f34", "#8d99b5", "#dfe6f5"];
 const BOOT_COLOURS = ["#5a4630", "#8a5f34", "#8d99b5", "#dfe6f5"];
 const GLOVE_COLOURS = ["#c9a882", "#a9713f", "#8d99b5", "#dfe6f5"];
 
+const HELM_COLOURS = [
+  { base: "#f6cfa6", lit: "#ffe3c4", dark: "#c9a882" },
+  { base: "#a9713f", lit: "#c98f57", dark: "#7d5028" },
+  { base: "#9aa8c4", lit: "#c3cde0", dark: "#6f7d99" },
+  { base: "#cfd6e6", lit: "#f6f9ff", dark: "#9aa3bb" },
+];
+
 function tierOf(piece) {
   return piece ? piece.tier : 0;
 }
@@ -923,6 +1017,8 @@ function HeroSprite({ gear }) {
   const boots = BOOT_COLOURS[tierOf(gear.boots)];
   const glove = GLOVE_COLOURS[tierOf(gear.gloves)];
   const shieldTier = tierOf(gear.shield);
+  const helmTier = tierOf(gear.helm);
+  const helm = HELM_COLOURS[helmTier];
   const weapon = gear.weapon || STARTER_WEAPON;
 
   const blade = [
@@ -956,17 +1052,55 @@ function HeroSprite({ gear }) {
       </g>
 
       <g className="bs-hero-body">
-        <rect x="12" y="0" width="3" height="1" fill="#ffb3c8" />
-        <rect x="12" y="1" width="3" height="2" fill="#ff6b8a" />
-        <rect x="11" y="2" width="1" height="2" fill="#d1425f" />
-
-        <rect x="9" y="3" width="8" height="1" fill="#eef2ff" />
-        <rect x="8" y="4" width="10" height="6" fill="#cfd6e6" />
-        <rect x="8" y="4" width="10" height="1" fill="#f6f9ff" />
-        <rect x="8" y="9" width="10" height="1" fill="#9aa3bb" />
-        <rect x="10" y="6" width="6" height="2" fill="#2b2340" />
-        <rect x="11" y="6" width="1" height="1" fill="#8fd7ff" />
-        <rect x="14" y="6" width="1" height="1" fill="#8fd7ff" />
+        {helmTier === 0 ? (
+          // Bare headed to begin with: hair, a face, and no protection at all.
+          <g>
+            <rect x="9" y="3" width="8" height="2" fill="#6b4a2a" />
+            <rect x="8" y="4" width="10" height="2" fill="#7d5730" />
+            <rect x="9" y="5" width="8" height="5" fill="#f6cfa6" />
+            <rect x="9" y="5" width="8" height="1" fill="#6b4a2a" />
+            <rect x="11" y="7" width="1" height="1" fill="#2b2340" />
+            <rect x="14" y="7" width="1" height="1" fill="#2b2340" />
+            <rect x="12" y="9" width="2" height="1" fill="#d9a98a" />
+          </g>
+        ) : helmTier === 1 ? (
+          // A hood or cap: cloth over the crown, face still open.
+          <g>
+            <rect x="9" y="3" width="8" height="1" fill={helm.lit} />
+            <rect x="8" y="4" width="10" height="3" fill={helm.base} />
+            <rect x="8" y="4" width="10" height="1" fill={helm.lit} />
+            <rect x="9" y="7" width="8" height="3" fill="#f6cfa6" />
+            <rect x="8" y="6" width="2" height="4" fill={helm.base} />
+            <rect x="16" y="6" width="2" height="4" fill={helm.base} />
+            <rect x="11" y="8" width="1" height="1" fill="#2b2340" />
+            <rect x="14" y="8" width="1" height="1" fill="#2b2340" />
+          </g>
+        ) : helmTier === 2 ? (
+          // An iron helm with a nasal bar.
+          <g>
+            <rect x="9" y="2" width="8" height="1" fill={helm.lit} />
+            <rect x="8" y="3" width="10" height="6" fill={helm.base} />
+            <rect x="8" y="3" width="10" height="1" fill={helm.lit} />
+            <rect x="8" y="8" width="10" height="1" fill={helm.dark} />
+            <rect x="9" y="6" width="3" height="2" fill="#2b2340" />
+            <rect x="14" y="6" width="3" height="2" fill="#2b2340" />
+            <rect x="12" y="4" width="2" height="5" fill={helm.lit} />
+          </g>
+        ) : (
+          // A full great helm: a slit and a plume.
+          <g>
+            <rect x="12" y="0" width="3" height="1" fill="#ffb3c8" />
+            <rect x="12" y="1" width="3" height="2" fill="#ff6b8a" />
+            <rect x="11" y="2" width="1" height="2" fill="#d1425f" />
+            <rect x="9" y="3" width="8" height="1" fill={helm.lit} />
+            <rect x="8" y="4" width="10" height="6" fill={helm.base} />
+            <rect x="8" y="4" width="10" height="1" fill={helm.lit} />
+            <rect x="8" y="9" width="10" height="1" fill={helm.dark} />
+            <rect x="10" y="6" width="6" height="2" fill="#2b2340" />
+            <rect x="11" y="6" width="1" height="1" fill="#8fd7ff" />
+            <rect x="14" y="6" width="1" height="1" fill="#8fd7ff" />
+          </g>
+        )}
 
         <rect x="10" y="10" width="6" height="1" fill="#9aa3bb" />
         <rect x="6" y="11" width="4" height="3" fill={top.lit} />
@@ -1313,6 +1447,18 @@ export function ItemIcon({ item }) {
     );
   }
 
+  if (item.type === "helm") {
+    return (
+      <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
+        <path fill={c} d="M2 2h6v5H2z" />
+        <rect x="2" y="2" width="6" height="1" fill="#ffffff" />
+        <rect x="2" y="4" width="2" height="2" fill="#2b2340" />
+        <rect x="6" y="4" width="2" height="2" fill="#2b2340" />
+        <rect x="1" y="7" width="8" height="1" fill={c} />
+      </svg>
+    );
+  }
+
   if (item.type === "shield") {
     return (
       <svg className="bs-icon" viewBox="0 0 10 10" shapeRendering="crispEdges">
@@ -1399,6 +1545,7 @@ function StatusSheet({ hero, onClose }) {
 
             <Slot label="WEAPON" item={hero.gear.weapon} fallback="BARE HANDS" />
             <Slot label="SHIELD" item={hero.gear.shield} fallback="NONE" />
+            <Slot label="HELM" item={hero.gear.helm} fallback="BARE HEAD" />
             <Slot label="TOP" item={hero.gear.top} fallback="CLOTH SHIRT" />
             <Slot label="LEGS" item={hero.gear.legs} fallback="CLOTH PANTS" />
             <Slot label="BOOTS" item={hero.gear.boots} fallback="WORN SHOES" />

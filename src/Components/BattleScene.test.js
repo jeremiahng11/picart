@@ -1,6 +1,7 @@
 import {
   step, initialState, spawnWave, choosePower, applyPickup, rollChestContents, gainXp, rollWaveCount, reequip,
   MONSTERS, BOSSES, POWERS, BASE_POWERS, ITEMS, COMMON_ITEMS, SPECIAL_ITEMS, SLOTS, recalc,
+  itemScore, worthTaking,
   HERO_MAX_HP, HERO_MAX_MP, HERO_DEFENCE, XP_PER_LEVEL, HP_REGEN_TICKS, WAVES_MIN, WAVES_MAX, MAX_LEVEL,
 } from './BattleScene';
 
@@ -375,12 +376,96 @@ test('the catalogue is large and every key is unique', () => {
   expect(new Set(ITEMS.map((i) => i.key)).size).toBe(ITEMS.length);
 });
 
-test('every equipment slot has several pieces to find', () => {
+test('every equipment slot has several distinct pieces to find', () => {
   for (const slot of SLOTS) {
     const pieces = SPECIAL_ITEMS.filter((i) => i.type === slot);
-    expect(pieces.length).toBeGreaterThanOrEqual(3);
-    expect(new Set(pieces.map((p) => p.tier)).size).toBe(pieces.length);
+    expect(pieces.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(pieces.map((p) => p.key)).size).toBe(pieces.length);
   }
+});
+
+test('pieces of the same tier can differ in worth', () => {
+  const sharing = SLOTS.some((slot) => {
+    const byTier = {};
+    for (const piece of SPECIAL_ITEMS.filter((i) => i.type === slot)) {
+      byTier[piece.tier] = (byTier[piece.tier] || []).concat(itemScore(piece));
+    }
+    return Object.values(byTier).some((scores) => new Set(scores).size > 1);
+  });
+
+  // A rusted hauberk looks as heavy as a good one and is not worth as much.
+  expect(sharing).toBe(true);
+});
+
+test('worth is what decides an upgrade, not how heavy it looks', () => {
+  const jerkin = SPECIAL_ITEMS.find((i) => i.key === 'top-leather');
+  const rusted = SPECIAL_ITEMS.find((i) => i.key === 'top-chain-rust');
+
+  expect(rusted.tier).toBeGreaterThan(jerkin.tier);
+  expect(itemScore(jerkin)).toBeGreaterThan(itemScore(rusted));
+
+  const hero = applyPickup(initialState().hero, jerkin, () => {});
+  const after = applyPickup(hero, rusted, () => {});
+
+  expect(after.gear.top.key).toBe('top-leather');
+});
+
+test('he leaves behind a piece well beneath what he is wearing', () => {
+  const plate = SPECIAL_ITEMS.find((i) => i.key === 'top-plate');
+  const rags = SPECIAL_ITEMS.find((i) => i.key === 'top-rags');
+  const hero = applyPickup(initialState().hero, plate, () => {});
+
+  expect(worthTaking(hero, rags)).toBe(false);
+  expect(worthTaking(initialState().hero, rags)).toBe(true);
+});
+
+test('he does not stoop for a second of something he already carries', () => {
+  const helm = SPECIAL_ITEMS.find((i) => i.type === 'helm' && i.tier === 3);
+  const hero = applyPickup(initialState().hero, helm, () => {});
+
+  expect(worthTaking(hero, helm)).toBe(false);
+
+  const carrying = { ...initialState().hero, inventory: [helm] };
+  expect(worthTaking(carrying, helm)).toBe(false);
+});
+
+test('a trophy he already owns is left where it lies', () => {
+  const base = initialState().hero;
+  const trophy = COMMON_ITEMS[0];
+
+  expect(worthTaking(base, trophy)).toBe(true);
+  expect(worthTaking({ ...base, bag: [trophy.key] }, trophy)).toBe(false);
+});
+
+test('potions are taken when needed and only stockpiled so far', () => {
+  const base = initialState().hero;
+  const potion = { kind: 'potion', label: '+HP', color: '#ff6b8a' };
+
+  expect(worthTaking({ ...base, hp: 5 }, potion)).toBe(true);
+
+  const full = { ...base, inventory: [potion, potion, potion] };
+  expect(worthTaking(full, potion)).toBe(false);
+});
+
+test('junk left on the ground does not pin him to the scene', () => {
+  const plate = SPECIAL_ITEMS.find((i) => i.key === 'top-plate');
+  const rags = SPECIAL_ITEMS.find((i) => i.key === 'top-rags');
+  const dressed = applyPickup(initialState().hero, plate, () => {});
+
+  let s = {
+    ...initialState(),
+    hero: { ...dressed, x: 50, cooldown: 999 },
+    monsters: [],
+    wavesLeft: 0,
+    waveGap: 0,
+    drops: [{ ...rags, id: 31, x: 20, born: 0 }],
+  };
+
+  for (let i = 0; i < 40 && !s.travelling; i++) {
+    s = withRandom(0.9, () => step(s));
+  }
+
+  expect(s.travelling).toBe(true);
 });
 
 test('some blades carry an element and some do not', () => {
