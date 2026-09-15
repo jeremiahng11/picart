@@ -107,20 +107,25 @@ export function spawnWave(heroX = 16) {
 
   for (let i = 0; i < count; i++) {
     const def = pick(MONSTERS);
-    let x = FIELD_MIN;
 
-    for (let attempt = 0; attempt < 14; attempt++) {
-      // Bound per iteration so the closure below captures this candidate
-      // rather than a variable the loop keeps reassigning.
-      const candidate = FIELD_MIN + Math.random() * (FIELD_MAX - FIELD_MIN);
+    // Positions are chosen from the set that already satisfies the spacing,
+    // rather than by guessing and hoping. Rejection sampling with a retry cap
+    // only made the clearance likely, which showed up as an occasional monster
+    // materialising on top of the hero.
+    const candidates = [];
+    for (let candidate = FIELD_MIN; candidate <= FIELD_MAX; candidate += 2) {
       const clearOfHero = Math.abs(candidate - heroX) >= SPAWN_CLEARANCE;
       const clearOfKin = wave.every((m) => Math.abs(m.x - candidate) >= SPAWN_SPACING);
-
-      x = candidate;
       if (clearOfHero && clearOfKin) {
-        break;
+        candidates.push(candidate);
       }
     }
+
+    // Only reachable if the field is impossibly crowded; stand as far off as
+    // the ground allows.
+    const x = candidates.length
+      ? candidates[Math.floor(Math.random() * candidates.length)]
+      : (heroX > (FIELD_MIN + FIELD_MAX) / 2 ? FIELD_MIN : FIELD_MAX);
 
     wave.push({
       ...def,

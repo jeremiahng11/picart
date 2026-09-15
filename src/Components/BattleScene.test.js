@@ -65,11 +65,11 @@ test('a wave keeps its distance from the hero and from itself', () => {
     const wave = spawnWave(heroX);
 
     for (const m of wave) {
-      expect(Math.abs(m.x - heroX)).toBeGreaterThanOrEqual(10);
+      expect(Math.abs(m.x - heroX)).toBeGreaterThanOrEqual(15);
     }
     for (let a = 0; a < wave.length; a++) {
       for (let b = a + 1; b < wave.length; b++) {
-        expect(Math.abs(wave[a].x - wave[b].x)).toBeGreaterThan(2);
+        expect(Math.abs(wave[a].x - wave[b].x)).toBeGreaterThanOrEqual(8);
       }
     }
   }
@@ -207,11 +207,17 @@ test('a knocked out hero revives at full strength against a new wave', () => {
   expect(after.monsters.length).toBeGreaterThanOrEqual(1);
 });
 
-test('a cleared field brings in another wave', () => {
-  let s = { ...heroAt(50), monsters: [], waveGap: 0 };
-  for (let i = 0; i < 40 && s.monsters.length === 0; i++) {
+test('a cleared field eventually brings in another wave', () => {
+  // Since travel was introduced this takes a full crossing plus the departure
+  // fade, and a chest appearing would hold him up further, so loot is cleared
+  // each frame and the budget is generous. The old limit of 40 made this flaky.
+  let s = { ...heroAt(50, { cooldown: 999 }), monsters: [], drops: [], waveGap: 0 };
+
+  for (let i = 0; i < 150 && s.monsters.length === 0; i++) {
     s = step(s);
+    s.drops = [];
   }
+
   expect(s.monsters.length).toBeGreaterThanOrEqual(1);
 });
 
