@@ -960,9 +960,11 @@ body {
   transition: left 0.16s linear;
 }
 
+.bs-facing { display: block; }
 .bs-sprite { display: block; }
 .bs-sprite svg { display: block; height: 26px; width: auto; }
-.bs-unit--hero .bs-sprite svg { height: 30px; }
+.bs-unit--hero .bs-sprite svg { height: 32px; }
+.bs-move-hop .bs-sprite svg { height: 20px; }
 
 .bs-meters { display: flex; flex-direction: column; gap: 1px; }
 

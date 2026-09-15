@@ -81,20 +81,38 @@ function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-// One to three at a time, fanned out so they queue up rather than stacking on
-// the same pixel.
-export function spawnWave() {
+const SPAWN_CLEARANCE = 15;
+const SPAWN_SPACING = 8;
+
+// One to three at a time, anywhere on the field and on either side of the hero,
+// but never right on top of him or on each other.
+export function spawnWave(heroX = 16) {
   const count = 1 + Math.floor(Math.random() * 3);
   const wave = [];
 
   for (let i = 0; i < count; i++) {
     const def = pick(MONSTERS);
+    let x = FIELD_MIN;
+
+    for (let attempt = 0; attempt < 14; attempt++) {
+      // Bound per iteration so the closure below captures this candidate
+      // rather than a variable the loop keeps reassigning.
+      const candidate = FIELD_MIN + Math.random() * (FIELD_MAX - FIELD_MIN);
+      const clearOfHero = Math.abs(candidate - heroX) >= SPAWN_CLEARANCE;
+      const clearOfKin = wave.every((m) => Math.abs(m.x - candidate) >= SPAWN_SPACING);
+
+      x = candidate;
+      if (clearOfHero && clearOfKin) {
+        break;
+      }
+    }
+
     wave.push({
       ...def,
       id: id(),
       hp: def.maxHp,
-      x: clamp(FIELD_MAX - i * 9 - Math.random() * 6, FIELD_MIN, FIELD_MAX),
-      face: -1,
+      x,
+      face: heroX >= x ? 1 : -1,
       state: "walk",
       timer: 0,
       cooldown: Math.floor(Math.random() * 4),
@@ -120,7 +138,7 @@ export function initialState() {
       dead: false,
       respawn: 0,
     },
-    monsters: spawnWave(),
+    monsters: spawnWave(16),
     drops: [],
     floats: [],
     waveGap: 0,
@@ -177,7 +195,7 @@ export function step(prev) {
         state: "idle",
         respawn: 0,
       },
-      monsters: spawnWave(),
+      monsters: spawnWave(16),
     };
   }
 
@@ -203,7 +221,7 @@ export function step(prev) {
   if (living.length === 0) {
     waveGap += 1;
     if (waveGap >= WAVE_GAP) {
-      monsters = monsters.concat(spawnWave());
+      monsters = monsters.concat(spawnWave(hero.x));
       waveGap = 0;
     }
   } else {
@@ -334,27 +352,51 @@ function prefersReducedMotion() {
 
 function HeroSprite() {
   return (
-    <svg viewBox="0 0 16 18" shapeRendering="crispEdges">
+    <svg viewBox="0 0 18 20" shapeRendering="crispEdges">
       <g className="bs-hero-body">
-        <rect x="5" y="0" width="6" height="1" fill="#ffd76b" />
-        <rect x="4" y="1" width="8" height="1" fill="#c9962b" />
-        <rect x="5" y="2" width="6" height="3" fill="#f6cfa6" />
-        <rect x="6" y="3" width="1" height="1" fill="#0d0a1c" />
-        <rect x="9" y="3" width="1" height="1" fill="#0d0a1c" />
-        <rect x="4" y="5" width="8" height="5" fill="#4a7fe0" />
-        <rect x="4" y="7" width="8" height="1" fill="#2f5bb0" />
-        <rect x="6" y="6" width="4" height="1" fill="#8fc0ff" />
-        <rect x="3" y="6" width="1" height="3" fill="#3a63b4" />
-        <rect x="4" y="10" width="3" height="5" fill="#2c1f4e" />
-        <rect x="9" y="10" width="3" height="5" fill="#2c1f4e" />
-        <rect x="3" y="15" width="4" height="2" fill="#6b4a2a" />
-        <rect x="9" y="15" width="4" height="2" fill="#6b4a2a" />
+        {/* cape, behind everything */}
+        <path fill="#9e2b45" d="M4 7h3v9H4z" />
+        <path fill="#b8324f" d="M5 7h2v8H5z" />
+
+        {/* plumed helm */}
+        <rect x="8" y="0" width="2" height="1" fill="#ff8fa8" />
+        <rect x="8" y="1" width="2" height="1" fill="#ff6b8a" />
+        <rect x="7" y="1" width="1" height="1" fill="#d1425f" />
+        <rect x="6" y="2" width="6" height="4" fill="#cfd6e6" />
+        <rect x="6" y="2" width="6" height="1" fill="#eef2ff" />
+        <rect x="6" y="5" width="6" height="1" fill="#9aa3bb" />
+        <rect x="7" y="4" width="4" height="1" fill="#2b2340" />
+
+        {/* pauldrons and chest */}
+        <rect x="4" y="6" width="3" height="2" fill="#cfd6e6" />
+        <rect x="11" y="6" width="3" height="2" fill="#cfd6e6" />
+        <rect x="4" y="6" width="3" height="1" fill="#eef2ff" />
+        <rect x="11" y="6" width="3" height="1" fill="#eef2ff" />
+        <rect x="6" y="6" width="6" height="6" fill="#4a7fe0" />
+        <rect x="6" y="6" width="6" height="1" fill="#79a4f5" />
+        <rect x="8" y="8" width="2" height="2" fill="#ffd76b" />
+        <rect x="6" y="12" width="6" height="1" fill="#6b4a2a" />
+        <rect x="8" y="12" width="2" height="1" fill="#c9962b" />
+
+        {/* shield arm */}
+        <rect x="2" y="8" width="4" height="5" fill="#c9962b" />
+        <rect x="2" y="8" width="4" height="1" fill="#ffd76b" />
+        <rect x="3" y="10" width="2" height="2" fill="#8a5f1c" />
+
+        {/* legs and boots */}
+        <rect x="6" y="13" width="2" height="4" fill="#2c1f4e" />
+        <rect x="10" y="13" width="2" height="4" fill="#2c1f4e" />
+        <rect x="5" y="17" width="4" height="2" fill="#6b4a2a" />
+        <rect x="9" y="17" width="4" height="2" fill="#6b4a2a" />
       </g>
+
+      {/* Its own group so the sword can sweep independently of the body. */}
       <g className="bs-hero-arm">
-        <rect x="12" y="6" width="2" height="2" fill="#f6cfa6" />
-        <rect x="13" y="2" width="1" height="5" fill="#8a7fb8" />
-        <rect x="13" y="0" width="1" height="2" fill="#e6e0ff" />
-        <rect x="12" y="5" width="3" height="1" fill="#c9962b" />
+        <rect x="12" y="7" width="2" height="3" fill="#cfd6e6" />
+        <rect x="13" y="8" width="4" height="1" fill="#c9962b" />
+        <rect x="14" y="1" width="2" height="7" fill="#b9c2de" />
+        <rect x="14" y="1" width="1" height="7" fill="#eef2ff" />
+        <rect x="14" y="0" width="2" height="1" fill="#ffffff" />
       </g>
     </svg>
   );
@@ -439,12 +481,13 @@ function MonsterSprite({ kind }) {
         </svg>
       );
     default:
+      // The shape of the very first decorative sprite, kept as drawn.
       return (
-        <svg viewBox="0 0 12 9" shapeRendering="crispEdges">
-          <path fill="currentColor" d="M4 0h4v1h2v1h1v6H1V2h1V1h2z" />
-          <path fill="#ffffff" opacity="0.35" d="M3 2h2v1H3z" />
-          <rect x="4" y="4" width="1" height="2" fill="#0d0a1c" />
-          <rect x="7" y="4" width="1" height="2" fill="#0d0a1c" />
+        <svg viewBox="0 0 8 6" shapeRendering="crispEdges">
+          <path fill="currentColor" d="M3 0h2v1h1v1h1v4H0V2h1V1h2z" />
+          <rect x="2" y="3" width="1" height="1" fill="#0d0a1c" />
+          <rect x="5" y="3" width="1" height="1" fill="#0d0a1c" />
+          <rect x="1" y="2" width="1" height="1" fill="#ffffff" opacity="0.4" />
         </svg>
       );
   }
@@ -515,8 +558,10 @@ export default function BattleScene() {
           <Bar value={hero.hp} max={HERO_MAX_HP} color="#6ddf8e" width={24} />
           <Bar value={hero.mp} max={HERO_MAX_MP} color="#6bb6ff" width={24} />
         </span>
-        <span className="bs-sprite" style={{ transform: "scaleX(" + hero.face + ")" }}>
-          <HeroSprite />
+        <span className="bs-facing" style={{ transform: "scaleX(" + hero.face + ")" }}>
+          <span className="bs-sprite">
+            <HeroSprite />
+          </span>
         </span>
       </span>
 
@@ -529,8 +574,10 @@ export default function BattleScene() {
           <span className="bs-meters">
             <Bar value={m.hp} max={m.maxHp} color={m.color} width={18} />
           </span>
-          <span className="bs-sprite" style={{ transform: "scaleX(" + m.face + ")" }}>
-            <MonsterSprite kind={m.kind} />
+          <span className="bs-facing" style={{ transform: "scaleX(" + m.face + ")" }}>
+            <span className="bs-sprite">
+              <MonsterSprite kind={m.kind} />
+            </span>
           </span>
         </span>
       ))}

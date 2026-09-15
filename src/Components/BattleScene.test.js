@@ -44,19 +44,67 @@ test('a wave holds between one and three monsters', () => {
   }
 });
 
-test('monsters in a wave are fanned out rather than stacked', () => {
-  const wave = withRandom(0.9, spawnWave);
-  const xs = wave.map((m) => m.x);
-  expect(new Set(xs).size).toBe(xs.length);
+test('monsters spawn anywhere on the field, not only to one side', () => {
+  const sides = new Set();
+  for (let i = 0; i < 120; i++) {
+    for (const m of spawnWave(50)) {
+      sides.add(m.x < 50 ? 'left' : 'right');
+    }
+  }
+  expect(sides.has('left')).toBe(true);
+  expect(sides.has('right')).toBe(true);
 });
 
-test('the hero walks toward a monster that is out of reach', () => {
+test('a wave keeps its distance from the hero and from itself', () => {
+  for (let i = 0; i < 120; i++) {
+    const heroX = 20 + Math.random() * 60;
+    const wave = spawnWave(heroX);
+
+    for (const m of wave) {
+      expect(Math.abs(m.x - heroX)).toBeGreaterThanOrEqual(10);
+    }
+    for (let a = 0; a < wave.length; a++) {
+      for (let b = a + 1; b < wave.length; b++) {
+        expect(Math.abs(wave[a].x - wave[b].x)).toBeGreaterThan(2);
+      }
+    }
+  }
+});
+
+test('a monster spawned to the left of the hero faces right at him', () => {
+  const wave = spawnWave(90);
+  for (const m of wave) {
+    expect(m.face).toBe(m.x <= 90 ? 1 : -1);
+  }
+});
+
+test('the hero walks right toward a monster on his right', () => {
   const state = { ...heroAt(16), monsters: [monster('skeleton', 90)] };
   const after = withRandom(0.5, () => step(state));
 
   expect(after.hero.state).toBe('walk');
   expect(after.hero.x).toBeGreaterThan(16);
   expect(after.hero.face).toBe(1);
+});
+
+test('the hero turns and walks left toward a monster behind him', () => {
+  const state = { ...heroAt(80), monsters: [monster('skeleton', 10)] };
+  const after = withRandom(0.5, () => step(state));
+
+  expect(after.hero.state).toBe('walk');
+  expect(after.hero.x).toBeLessThan(80);
+  expect(after.hero.face).toBe(-1);
+});
+
+test('the hero picks whichever monster is nearest, on either side', () => {
+  const state = {
+    ...heroAt(50),
+    monsters: [monster('skeleton', 12), { ...monster('imp', 56), id: 2 }],
+  };
+  const after = withRandom(0.5, () => step(state));
+
+  expect(after.hero.face).toBe(1);
+  expect(after.monsters.find((m) => m.id === 2).hp).toBeLessThan(16);
 });
 
 test('the hero swings once the monster is within reach', () => {
