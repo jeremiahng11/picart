@@ -78,10 +78,10 @@ use `npm run react-build` alone; the provided `Dockerfile` already does this.
 4. Attach a domain and enable SSL. Coolify provisions a Let's Encrypt
    certificate via its proxy — this is **required**, not optional, because
    WebUSB refuses to run over plain HTTP.
-5. Under **Environment Variables**, add `APP_VERSION` with the value
-   `$SOURCE_COMMIT` and mark it as a **build variable**. The React bundle is
-   compiled during `docker build`, so a runtime-only variable arrives too late
-   and the UI falls back to showing `dev`.
+5. Leave `APP_VERSION` unset so the version comes from `package.json`, which CI
+   bumps automatically. Set it only to pin a build to a specific label, and mark
+   it as a **build variable** if you do: the bundle is compiled during
+   `docker build`, so a runtime-only variable arrives too late to be seen.
 6. Deploy. Health check endpoint is `GET /healthz`.
 
 The build is domain-agnostic: `homepage` resolves to a public path of `/`, so
@@ -91,12 +91,28 @@ assets are root-relative and no rebuild is needed when the domain changes.
 `index.html`. This app has no client-side router, so a fallback would only serve
 the page with a 200 status for missing assets and hide broken links.
 
+## Versioning
+
+The patch version is bumped automatically. Once a push to `main` builds green,
+the `version` job in `ci.yml` runs `npm version patch`, commits the result, and
+pushes it back, so the connect screen shows a number that increases with every
+change that lands.
+
+Two details make that safe. The bump runs only after `build` succeeds, so a
+failing change does not consume a version. And the push uses `GITHUB_TOKEN`,
+which by design does not trigger workflows, so the bump commit cannot start
+another run.
+
+The bump commit lands after the build that triggered it, so artifacts from that
+run still carry the previous version. Tagged releases are unaffected:
+`release.yml` sets the version from the tag name instead.
+
 ## Environment variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `APP_VERSION` | `dev` (Docker build arg) | Build identity shown on the connect screen. Pass the deployed commit so it is possible to tell which build is live. |
-| `REACT_APP_VERSION` | `$npm_package_version` from `.env`, overridden by `APP_VERSION` in Docker | What the UI actually renders. Outside a tagged release it resolves to `0.0.0`, which is why the Docker build overrides it. |
+| `APP_VERSION` | unset | Optional Docker build arg. Overrides the version shown on the connect screen. Leave it unset to use the `package.json` version. |
+| `REACT_APP_VERSION` | `$npm_package_version` from `.env` | What the UI renders. Resolves to the `package.json` version unless `APP_VERSION` overrides it. |
 | `CI` | `false` (set in `Dockerfile`) | `react-scripts` treats lint warnings as build errors when this is truthy. |
 
 No secrets are required. `.env` contains only the version reference and is
