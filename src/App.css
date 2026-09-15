@@ -874,10 +874,10 @@ body {
 
 .cart__label .iconbtn:disabled { box-shadow: none; opacity: 0.45; }
 
+/* The lead and the version line read cleanly without one; only the heading and
+   the status line still need the help. */
 .cart__label .hero__title,
-.cart__label .hero__lead,
-.cart__label .hero__status,
-.cart__label .hero__version {
+.cart__label .hero__status {
   text-shadow: 0 1px 0 rgba(8, 5, 18, 0.85), 0 0 6px rgba(8, 5, 18, 0.7);
 }
 
