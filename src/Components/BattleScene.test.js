@@ -24,6 +24,11 @@ function heroAt(x, extra = {}) {
 
 function monster(kind, x, extra = {}) {
   const def = MONSTERS.find((m) => m.kind === kind);
+  // Without this a renamed monster spreads undefined and every assertion that
+  // depends on it fails somewhere far from the cause.
+  if (!def) {
+    throw new Error('no such monster: ' + kind + '; have ' + MONSTERS.map((m) => m.kind).join(', '));
+  }
   return {
     ...def, id: 1, hp: def.maxHp, x, face: -1,
     state: 'walk', timer: 0, cooldown: 0, slot: 0, dead: false, ...extra,
@@ -104,7 +109,7 @@ test('the hero turns and walks left toward a monster behind him', () => {
 test('the hero picks whichever monster is nearest, on either side', () => {
   const state = {
     ...heroAt(50),
-    monsters: [monster('skeleton', 12), { ...monster('imp', 56), id: 2 }],
+    monsters: [monster('skeleton', 12), { ...monster('ghoul', 56), id: 2 }],
   };
   const after = withRandom(0.5, () => step(state));
 
@@ -123,7 +128,7 @@ test('the hero swings once the monster is within reach', () => {
 });
 
 test('monsters are drawn toward the hero', () => {
-  const state = { ...heroAt(16, { cooldown: 99 }), monsters: [monster('spider', 90)] };
+  const state = { ...heroAt(16, { cooldown: 99 }), monsters: [monster('goblin', 90)] };
   const after = withRandom(0.5, () => step(state));
 
   expect(after.monsters[0].x).toBeLessThan(90);
@@ -189,7 +194,7 @@ test('loot out of the hero reach stays on the ground', () => {
 test('the hero is knocked out when a monster lands the last hit', () => {
   const state = {
     ...heroAt(40, { hp: 1, cooldown: 99 }),
-    monsters: [monster('imp', 42)],
+    monsters: [monster('ghoul', 42)],
   };
   const after = withRandom(0.9, () => step(state));
 
@@ -329,8 +334,8 @@ test('the strongest power strikes every monster on the field', () => {
     ...heroAt(50),
     monsters: [
       monster('skeleton', 54),
-      { ...monster('imp', 20), id: 2 },
-      { ...monster('ghost', 80), id: 3 },
+      { ...monster('ghoul', 20), id: 2 },
+      { ...monster('warlock', 80), id: 3 },
     ],
   };
   const base = heroAt(50);
@@ -357,15 +362,15 @@ test('the hero outlasts any single monster', () => {
 });
 
 test('armour takes the edge off every blow', () => {
-  const imp = MONSTERS.find((m) => m.kind === 'imp');
+  const ghoul = MONSTERS.find((m) => m.kind === 'ghoul');
   const state = {
     ...heroAt(40, { cooldown: 999 }),
-    monsters: [monster('imp', 42)],
+    monsters: [monster('ghoul', 42)],
   };
   const after = withRandom(0.99, () => step(state));
 
   const dealt = HERO_MAX_HP - after.hero.hp;
-  expect(dealt).toBe(imp.dmg[1] - HERO_DEFENCE);
+  expect(dealt).toBe(ghoul.dmg[1] - HERO_DEFENCE);
   expect(dealt).toBeGreaterThanOrEqual(1);
 });
 
@@ -692,7 +697,7 @@ test('simultaneous pickups are given separate lanes so the text cannot overlap',
 test('a wounded hero goes for a potion before anything else', () => {
   const state = {
     ...heroAt(50, { hp: 6, cooldown: 999 }),
-    monsters: [monster('imp', 54)],
+    monsters: [monster('ghoul', 54)],
     drops: [{ kind: 'potion', label: '+HP', color: '#ff6b8a', id: 12, x: 20, born: 0 }],
   };
   const after = withRandom(0.9, () => step(state));
@@ -705,7 +710,7 @@ test('a wounded hero goes for a potion before anything else', () => {
 test('a wounded hero with nothing to drink stands his ground', () => {
   const state = {
     ...heroAt(50, { hp: 6, cooldown: 0 }),
-    monsters: [monster('imp', 55)],
+    monsters: [monster('ghoul', 55)],
     drops: [],
   };
   const after = withRandom(0.9, () => step(state));
@@ -716,7 +721,7 @@ test('a wounded hero with nothing to drink stands his ground', () => {
 });
 
 test('a healthy hero still closes in rather than retreating', () => {
-  const state = { ...heroAt(50, { cooldown: 999 }), monsters: [monster('imp', 80)], drops: [] };
+  const state = { ...heroAt(50, { cooldown: 999 }), monsters: [monster('ghoul', 80)], drops: [] };
   const after = withRandom(0.9, () => step(state));
 
   expect(after.hero.x).toBeGreaterThan(50);
@@ -943,4 +948,17 @@ test('a new game opens without a boss on the field', () => {
     expect(fresh.hero.level).toBe(1);
     expect(fresh.monsters.some((m) => m.boss)).toBe(false);
   }
+});
+
+test('every monster and boss has a plate and a frame count', () => {
+  for (const def of MONSTERS.concat(BOSSES)) {
+    expect(typeof def.sheet).toBe('string');
+    expect(def.sheet.length).toBeGreaterThan(0);
+    expect(def.sheetFrames).toBeGreaterThanOrEqual(4);
+  }
+});
+
+test('monster kinds are distinct, so no two share a plate by accident', () => {
+  const kinds = MONSTERS.concat(BOSSES).map((m) => m.kind);
+  expect(new Set(kinds).size).toBe(kinds.length);
 });

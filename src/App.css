@@ -1053,11 +1053,55 @@ body {
 .bs-unit.is-warp, .bs-hit.is-warp { transition: none; }
 
 .bs-sprite { display: block; }
-.bs-sprite svg { display: block; height: 26px; width: auto; }
-.bs-unit--hero .bs-sprite svg { height: 48px; }
+
+/* ---- pixel plates ----
+ * Every sheet is a row of 16px frames. The element is one frame wide, the
+ * background is scaled to the whole row, and the animation steps it along, so
+ * only the first four frames, the idle cycle, ever show.
+ */
+
+.bs-plate {
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  background-repeat: no-repeat;
+  background-size: calc(var(--frames) * var(--size)) var(--size);
+  background-position: 0 0;
+  image-rendering: pixelated;
+  animation: bs-plate-idle 0.72s steps(4) infinite;
+}
+
+@keyframes bs-plate-idle {
+  from { background-position-x: 0; }
+  to { background-position-x: calc(var(--size) * -4); }
+}
+
+.bs-unit { --size: 34px; }
+.bs-unit--hero { --size: 46px; }
+.bs-unit--boss { --size: 72px; }
+
+/* The gear is drawn in the same sixteen unit grid as the plate, laid exactly
+   over it, so an overlay rectangle covers whole pixels. */
+.bs-rig { position: relative; display: block; }
+
+.bs-over {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  shape-rendering: crispEdges;
+}
+
+/* The base bobs a pixel on alternate frames; the gear has to bob with it or it
+   floats free of the body. */
+.bs-over { animation: bs-over-bob 0.36s steps(2) infinite; }
+
+@keyframes bs-over-bob {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(var(--size) / -16)); }
+}
 
 /* A boss towers over the rank and file. */
-.bs-unit--boss .bs-sprite svg { height: 74px; }
 .bs-unit--boss .bs-bar { width: 44px; height: 5px; }
 .bs-unit--boss { filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.5)); }
 
@@ -1109,7 +1153,6 @@ body {
   from { transform: translateX(-1px) scaleY(1); }
   to { transform: translateX(1px) scaleY(0.94); }
 }
-.bs-move-hop .bs-sprite svg { height: 20px; }
 
 .bs-meters { display: flex; flex-direction: column; gap: 1px; }
 
@@ -1128,18 +1171,15 @@ body {
 
 /* ---- idle and travel animations, one per movement style ---- */
 
-.bs-move-walk.is-walk .bs-sprite { animation: bs-step 0.34s steps(2, end) infinite; }
-.bs-move-walk.is-idle .bs-sprite { animation: bs-breathe 1.6s ease-in-out infinite; }
 
-.bs-move-hop.is-walk .bs-sprite { animation: bs-hop 0.62s ease-in-out infinite; }
-.bs-move-hop.is-idle .bs-sprite { animation: bs-squash 1.5s ease-in-out infinite; }
 
-.bs-move-fly .bs-sprite { animation: bs-hover 0.9s ease-in-out infinite; }
-.bs-move-fly .bs-wing { animation: bs-flap 0.18s steps(2, end) infinite; transform-box: fill-box; }
+.bs-move-hop.is-walk .bs-rig,
+.bs-move-hop.is-walk .bs-plate { animation-name: bs-plate-idle, bs-hop; animation-duration: 0.72s, 0.62s; }
+.bs-move-fly .bs-rig { animation: bs-hover 0.9s ease-in-out infinite; }
+.bs-move-float .bs-rig { animation: bs-drift 2.2s ease-in-out infinite; }
 .bs-move-fly .bs-wing--l { transform-origin: 100% 50%; }
 .bs-move-fly .bs-wing--r { transform-origin: 0% 50%; }
 
-.bs-move-float .bs-sprite { animation: bs-drift 2.2s ease-in-out infinite; }
 
 .bs-legs { transform-box: fill-box; transform-origin: 50% 0%; }
 .is-walk .bs-legs { animation: bs-scuttle 0.22s steps(2, end) infinite; }

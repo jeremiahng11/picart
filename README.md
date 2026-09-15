@@ -143,8 +143,9 @@ committed deliberately.
 The application code is **GPLv3** — see [LICENSE](LICENSE). Copyright (C) 2023
 Sebastian Quilitz; this fork retains the upstream copyright notices.
 
-The parallax scenery in `src/assets/scenes` is third-party pixel art used under
-licence for this project. It is not covered by the GPL and is not yours to
+The parallax scenery in `src/assets/scenes` and the character plates in
+`src/assets/sprites` are third-party pixel art used under licence for this
+project. It is not covered by the GPL and is not yours to
 redistribute by virtue of this repository's licence.
 
 The JKL logo and icons (`src/assets/jkl_small.png`, `public/favicon.png`,

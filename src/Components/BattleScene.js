@@ -26,6 +26,18 @@
 import React from "react";
 import Scenery, { sceneAt } from "./Scenery";
 
+import warriorBase from "../assets/sprites/warrior-base.png";
+import slimeSheet from "../assets/sprites/slime.png";
+import skullSheet from "../assets/sprites/skull.png";
+import goblinSheet from "../assets/sprites/goblin.png";
+import skeletonSheet from "../assets/sprites/skeleton.png";
+import ghoulSheet from "../assets/sprites/ghoul.png";
+import mummySheet from "../assets/sprites/mummy.png";
+import warlockSheet from "../assets/sprites/warlock.png";
+import lichSheet from "../assets/sprites/lich.png";
+import deathSheet from "../assets/sprites/death.png";
+import redknightSheet from "../assets/sprites/redknight.png";
+
 const TICK_MS = 165;
 
 // Comfortably above the sturdiest monster, so a bad wave wears the hero down
@@ -69,27 +81,28 @@ const SPAWN_SPACING = 8;
 
 // move drives which idle animation the sprite gets: hoppers bounce, fliers
 // flap, floaters drift, walkers take steps.
+// Every sheet is 16px frames laid out in a row, the first four of which are the
+// idle cycle. sheetFrames is how many the plate holds in total, which is what
+// the background has to be scaled by.
 export const MONSTERS = [
-  { kind: "slime", color: "#6ddf8e", maxHp: 10, dmg: [1, 3], speed: 0.75, reach: 7, cd: 7, move: "hop" },
-  { kind: "bat", color: "#b48ce0", maxHp: 8, dmg: [2, 4], speed: 1.7, reach: 7, cd: 5, move: "fly" },
-  { kind: "ghost", color: "#8fd7ff", maxHp: 13, dmg: [1, 4], speed: 1.0, reach: 8, cd: 6, move: "float" },
-  { kind: "imp", color: "#ff9b6b", maxHp: 16, dmg: [3, 6], speed: 1.2, reach: 7, cd: 8, move: "walk" },
-  { kind: "skeleton", color: "#e8e4d9", maxHp: 14, dmg: [2, 5], speed: 0.95, reach: 8, cd: 7, move: "walk" },
-  { kind: "mushroom", color: "#ff7f9e", maxHp: 12, dmg: [2, 4], speed: 0.6, reach: 6, cd: 9, move: "hop" },
-  { kind: "spider", color: "#a78bd6", maxHp: 9, dmg: [1, 5], speed: 1.6, reach: 6, cd: 5, move: "walk" },
+  { kind: "slime", sheet: slimeSheet, sheetFrames: 4, color: "#6ddf8e", maxHp: 10, dmg: [1, 3], speed: 0.75, reach: 7, cd: 7, move: "hop" },
+  { kind: "skull", sheet: skullSheet, sheetFrames: 4, color: "#e8e4d9", maxHp: 9, dmg: [2, 4], speed: 1.5, reach: 7, cd: 6, move: "float" },
+  { kind: "goblin", sheet: goblinSheet, sheetFrames: 8, color: "#8fb35a", maxHp: 12, dmg: [2, 4], speed: 1.4, reach: 7, cd: 6, move: "walk" },
+  { kind: "skeleton", sheet: skeletonSheet, sheetFrames: 8, color: "#e8e4d9", maxHp: 14, dmg: [2, 5], speed: 0.95, reach: 8, cd: 7, move: "walk" },
+  { kind: "ghoul", sheet: ghoulSheet, sheetFrames: 8, color: "#a78bd6", maxHp: 16, dmg: [3, 6], speed: 1.2, reach: 7, cd: 8, move: "walk" },
+  { kind: "mummy", sheet: mummySheet, sheetFrames: 8, color: "#d9c9a0", maxHp: 18, dmg: [3, 5], speed: 0.7, reach: 7, cd: 9, move: "walk" },
+  { kind: "warlock", sheet: warlockSheet, sheetFrames: 8, color: "#8fd7ff", maxHp: 13, dmg: [1, 6], speed: 1.0, reach: 9, cd: 6, move: "float" },
 ];
 
 // Shed by monsters. Chests never contain these.
 // Rare, slow, and far sturdier than anything else on the field. A boss arrives
 // alone rather than as part of a wave.
 export const BOSSES = [
-  { kind: "dragon", color: "#c9452f", maxHp: 120, dmg: [7, 12], speed: 0.55, reach: 12, cd: 9, move: "fly", boss: true },
-  { kind: "lich", color: "#a98cff", maxHp: 95, dmg: [6, 14], speed: 0.7, reach: 11, cd: 8, move: "float", boss: true },
-  { kind: "golem", color: "#8d9a86", maxHp: 150, dmg: [9, 15], speed: 0.4, reach: 10, cd: 11, move: "walk", boss: true },
+  { kind: "lich", sheet: lichSheet, sheetFrames: 12, color: "#a98cff", maxHp: 110, dmg: [6, 13], speed: 0.7, reach: 11, cd: 8, move: "float", boss: true },
+  { kind: "death", sheet: deathSheet, sheetFrames: 8, color: "#cfd6e6", maxHp: 130, dmg: [8, 14], speed: 0.8, reach: 11, cd: 9, move: "float", boss: true },
+  { kind: "redknight", sheet: redknightSheet, sheetFrames: 12, color: "#c9452f", maxHp: 150, dmg: [9, 15], speed: 0.6, reach: 10, cd: 10, move: "walk", boss: true },
 ];
 
-// Nothing this large comes looking for a hero in cloth. Bosses stay away until
-// he has some levels behind him, then grow steadily more likely.
 export const BOSS_MIN_LEVEL = 5;
 export const BOSS_CHANCE_CAP = 0.2;
 
@@ -1003,6 +1016,13 @@ const LEG_COLOURS = ["#6b5a3e", "#8a5f34", "#8d99b5", "#dfe6f5"];
 const BOOT_COLOURS = ["#5a4630", "#8a5f34", "#8d99b5", "#dfe6f5"];
 const GLOVE_COLOURS = ["#c9a882", "#a9713f", "#8d99b5", "#dfe6f5"];
 
+const SHIELD_COLOURS = [
+  null,
+  { base: "#c9962b", lit: "#ffd76b" },
+  { base: "#cfd6e6", lit: "#f6f9ff" },
+  { base: "#ffd76b", lit: "#fff6c9" },
+];
+
 const HELM_COLOURS = [
   { base: "#f6cfa6", lit: "#ffe3c4", dark: "#c9a882" },
   { base: "#a9713f", lit: "#c98f57", dark: "#7d5028" },
@@ -1014,320 +1034,84 @@ function tierOf(piece) {
   return piece ? piece.tier : 0;
 }
 
-function HeroSprite({ gear }) {
+// The base plate is the warrior with his painted-on shield and sword lifted
+// off, and everything he is wearing is drawn over it in the same sixteen by
+// sixteen space, so an overlay lands exactly where a pixel would.
+function HeroSprite({ gear, frames }) {
   const top = TOP_COLOURS[tierOf(gear.top)];
   const legs = LEG_COLOURS[tierOf(gear.legs)];
   const boots = BOOT_COLOURS[tierOf(gear.boots)];
   const glove = GLOVE_COLOURS[tierOf(gear.gloves)];
-  const shieldTier = tierOf(gear.shield);
   const helmTier = tierOf(gear.helm);
   const helm = HELM_COLOURS[helmTier];
+  const shieldTier = tierOf(gear.shield);
   const weapon = gear.weapon || STARTER_WEAPON;
 
   const blade = [
-    { x: 19, w: 3, top: 3, body: "#b9c2de", edge: "#eef2ff" },
-    { x: 19, w: 3, top: 2, body: "#c9cfdd", edge: "#f4f7ff" },
-    { x: 19, w: 3, top: 1, body: "#eef2ff", edge: "#ffffff" },
-    { x: 19, w: 3, top: 0, body: "#ff9b4a", edge: "#ffd76b" },
-    { x: 19, w: 3, top: 0, body: "#8fd7ff", edge: "#e6f7ff" },
-    { x: 18, w: 4, top: 0, body: "#d7b3ff", edge: "#f0e2ff" },
-    { x: 18, w: 5, top: 0, body: "#e8dcae", edge: "#ffd76b" },
+    { len: 3, body: "#b9c2de", edge: "#eef2ff" },
+    { len: 4, body: "#c9cfdd", edge: "#f4f7ff" },
+    { len: 4, body: "#eef2ff", edge: "#ffffff" },
+    { len: 5, body: "#ff9b4a", edge: "#ffd76b" },
+    { len: 5, body: "#8fd7ff", edge: "#e6f7ff" },
+    { len: 6, body: "#d7b3ff", edge: "#f0e2ff" },
+    { len: 6, body: "#e8dcae", edge: "#ffd76b" },
   ][Math.min(weapon.tier, 6)];
 
   return (
-    <svg viewBox="0 0 26 32" shapeRendering="crispEdges">
-      <g className="bs-hero-cape">
-        <path fill="#8a2540" d="M6 12h5v15H6z" />
-        <path fill="#b8324f" d="M7 12h4v14H7z" />
-        <path fill="#d14a67" d="M8 13h2v11H8z" />
-      </g>
+    <span className="bs-rig">
+      <span
+        className="bs-plate"
+        style={{ backgroundImage: "url(" + warriorBase + ")", "--frames": frames }}
+      />
+      <svg className="bs-over" viewBox="0 0 16 16" shapeRendering="crispEdges">
+        {/* torso and limbs, painted over the base tunic */}
+        {gear.top && (
+          <g>
+            <rect x="6" y="8" width="5" height="4" fill={top.base} />
+            <rect x="6" y="8" width="5" height="1" fill={top.lit} />
+            <rect x="6" y="11" width="5" height="1" fill={top.dark} />
+          </g>
+        )}
+        {gear.legs && <rect x="6" y="12" width="5" height="2" fill={legs} />}
+        {gear.boots && <rect x="6" y="14" width="5" height="1" fill={boots} />}
 
-      <g className="bs-hero-legs">
-        <rect x="10" y="22" width="3" height="6" fill={legs} />
-        <rect x="14" y="22" width="3" height="6" fill={legs} />
-        <rect x="10" y="22" width="3" height="1" fill="#ffffff" opacity="0.18" />
-        <rect x="9" y="28" width="5" height="3" fill={boots} />
-        <rect x="14" y="28" width="5" height="3" fill={boots} />
-        <rect x="9" y="28" width="5" height="1" fill="#ffffff" opacity="0.22" />
-        <rect x="14" y="28" width="5" height="1" fill="#ffffff" opacity="0.22" />
-        <rect x="9" y="31" width="5" height="1" fill="#3a2a1c" />
-        <rect x="14" y="31" width="5" height="1" fill="#3a2a1c" />
-      </g>
-
-      <g className="bs-hero-body">
-        {helmTier === 0 ? (
-          // Bare headed to begin with: hair, a face, and no protection at all.
+        {/* helm sits on the crown; nothing is drawn when he is bare headed */}
+        {helmTier > 0 && (
           <g>
-            <rect x="9" y="3" width="8" height="2" fill="#6b4a2a" />
-            <rect x="8" y="4" width="10" height="2" fill="#7d5730" />
-            <rect x="9" y="5" width="8" height="5" fill="#f6cfa6" />
-            <rect x="9" y="5" width="8" height="1" fill="#6b4a2a" />
-            <rect x="11" y="7" width="1" height="1" fill="#2b2340" />
-            <rect x="14" y="7" width="1" height="1" fill="#2b2340" />
-            <rect x="12" y="9" width="2" height="1" fill="#d9a98a" />
-          </g>
-        ) : helmTier === 1 ? (
-          // A hood or cap: cloth over the crown, face still open.
-          <g>
-            <rect x="9" y="3" width="8" height="1" fill={helm.lit} />
-            <rect x="8" y="4" width="10" height="3" fill={helm.base} />
-            <rect x="8" y="4" width="10" height="1" fill={helm.lit} />
-            <rect x="9" y="7" width="8" height="3" fill="#f6cfa6" />
-            <rect x="8" y="6" width="2" height="4" fill={helm.base} />
-            <rect x="16" y="6" width="2" height="4" fill={helm.base} />
-            <rect x="11" y="8" width="1" height="1" fill="#2b2340" />
-            <rect x="14" y="8" width="1" height="1" fill="#2b2340" />
-          </g>
-        ) : helmTier === 2 ? (
-          // An iron helm with a nasal bar.
-          <g>
-            <rect x="9" y="2" width="8" height="1" fill={helm.lit} />
-            <rect x="8" y="3" width="10" height="6" fill={helm.base} />
-            <rect x="8" y="3" width="10" height="1" fill={helm.lit} />
-            <rect x="8" y="8" width="10" height="1" fill={helm.dark} />
-            <rect x="9" y="6" width="3" height="2" fill="#2b2340" />
-            <rect x="14" y="6" width="3" height="2" fill="#2b2340" />
-            <rect x="12" y="4" width="2" height="5" fill={helm.lit} />
-          </g>
-        ) : (
-          // A full great helm: a slit and a plume.
-          <g>
-            <rect x="12" y="0" width="3" height="1" fill="#ffb3c8" />
-            <rect x="12" y="1" width="3" height="2" fill="#ff6b8a" />
-            <rect x="11" y="2" width="1" height="2" fill="#d1425f" />
-            <rect x="9" y="3" width="8" height="1" fill={helm.lit} />
-            <rect x="8" y="4" width="10" height="6" fill={helm.base} />
-            <rect x="8" y="4" width="10" height="1" fill={helm.lit} />
-            <rect x="8" y="9" width="10" height="1" fill={helm.dark} />
-            <rect x="10" y="6" width="6" height="2" fill="#2b2340" />
-            <rect x="11" y="6" width="1" height="1" fill="#8fd7ff" />
-            <rect x="14" y="6" width="1" height="1" fill="#8fd7ff" />
+            <rect x="5" y="4" width="6" height="2" fill={helm.base} />
+            <rect x="5" y="4" width="6" height="1" fill={helm.lit} />
+            {helmTier >= 2 && <rect x="5" y="6" width="6" height="1" fill={helm.dark} />}
+            {helmTier >= 3 && <rect x="7" y="6" width="2" height="2" fill={helm.base} />}
           </g>
         )}
 
-        <rect x="10" y="10" width="6" height="1" fill="#9aa3bb" />
-        <rect x="6" y="11" width="4" height="3" fill={top.lit} />
-        <rect x="16" y="11" width="4" height="3" fill={top.lit} />
-
-        <rect x="9" y="11" width="8" height="11" fill={top.base} />
-        <rect x="9" y="11" width="8" height="1" fill={top.lit} />
-        <rect x="9" y="16" width="8" height="1" fill={top.dark} />
-        {tierOf(gear.top) >= 2 && (
+        {/* shield on the leading arm */}
+        {shieldTier > 0 && (
           <g>
-            <rect x="9" y="14" width="8" height="1" fill={top.dark} opacity="0.65" />
-            <rect x="9" y="19" width="8" height="1" fill={top.dark} opacity="0.65" />
+            <rect x="3" y={10 - shieldTier} width="3" height={3 + shieldTier} fill={SHIELD_COLOURS[shieldTier].base} />
+            <rect x="3" y={10 - shieldTier} width="3" height="1" fill={SHIELD_COLOURS[shieldTier].lit} />
           </g>
         )}
-        {tierOf(gear.top) === 3 && (
-          <g>
-            <rect x="9" y="12" width="1" height="10" fill="#ffd76b" />
-            <rect x="16" y="12" width="1" height="10" fill="#ffd76b" />
-          </g>
-        )}
-        <rect x="11" y="13" width="4" height="3" fill="#ffd76b" />
-        <rect x="12" y="14" width="2" height="1" fill="#c9962b" />
-        <rect x="9" y="21" width="8" height="2" fill="#6b4a2a" />
-        <rect x="12" y="21" width="2" height="2" fill="#c9962b" />
 
-        {shieldTier === 3 ? (
-          <g>
-            <rect x="1" y="11" width="7" height="13" fill="#cfd6e6" />
-            <rect x="1" y="11" width="7" height="1" fill="#f6f9ff" />
-            <rect x="2" y="13" width="5" height="9" fill="#c9962b" />
-            <rect x="3" y="15" width="3" height="5" fill="#ffd76b" />
-          </g>
-        ) : shieldTier === 2 ? (
-          <g>
-            <rect x="2" y="12" width="6" height="7" fill="#cfd6e6" />
-            <rect x="2" y="12" width="6" height="1" fill="#f6f9ff" />
-            <path fill="#cfd6e6" d="M3 19h4v2H3zM4 21h2v1H4z" />
-            <rect x="3" y="14" width="4" height="4" fill="#4a7fe0" />
-          </g>
-        ) : shieldTier === 1 ? (
-          <g>
-            <rect x="3" y="13" width="5" height="6" fill="#c9962b" />
-            <rect x="3" y="13" width="5" height="1" fill="#ffd76b" />
-            <rect x="4" y="15" width="3" height="2" fill="#8a5f1c" />
-          </g>
-        ) : null}
-      </g>
-
-      <g className="bs-hero-arm">
-        <rect x="17" y="13" width="3" height="4" fill={glove} />
-        <rect x="17" y="13" width="3" height="1" fill="#ffffff" opacity="0.25" />
-        <rect x={blade.x - 2} y="12" width="7" height="1" fill="#c9962b" />
-        <rect x={blade.x} y={blade.top} width={blade.w} height={12 - blade.top} fill={blade.body} />
-        <rect x={blade.x} y={blade.top} width="1" height={12 - blade.top} fill={blade.edge} />
-        <rect x={blade.x} y={blade.top} width={blade.w} height="1" fill="#ffffff" />
-      </g>
-    </svg>
+        {/* gauntlet and blade in the trailing hand */}
+        {gear.gloves && <rect x="11" y="9" width="1" height="2" fill={glove} />}
+        <g className="bs-hero-arm">
+          <rect x="12" y={10 - blade.len} width="1" height={blade.len} fill={blade.body} />
+          <rect x="12" y={10 - blade.len} width="1" height="1" fill={blade.edge} />
+          <rect x="11" y="10" width="3" height="1" fill="#c9962b" />
+        </g>
+      </svg>
+    </span>
   );
 }
 
-function BossSprite({ kind }) {
-  if (kind === "lich") {
-    return (
-      <svg viewBox="0 0 26 30" shapeRendering="crispEdges">
-        <path fill="currentColor" opacity="0.35" d="M4 8h18v20H4z" />
-        <path fill="#2b2340" d="M8 2h10v9H8z" />
-        <rect x="8" y="2" width="10" height="1" fill="currentColor" />
-        <rect x="10" y="5" width="2" height="3" fill="#8fd7ff" />
-        <rect x="14" y="5" width="2" height="3" fill="#8fd7ff" />
-        <rect x="11" y="9" width="4" height="1" fill="#0d0a1c" />
-        <path fill="currentColor" d="M6 11h14v12H6z" />
-        <rect x="6" y="11" width="14" height="1" fill="#e2d6ff" />
-        <rect x="11" y="14" width="4" height="6" fill="#2b2340" />
-        <rect x="12" y="15" width="2" height="4" fill="#8fd7ff" />
-        <path fill="currentColor" d="M4 23h18v5H4z" opacity="0.8" />
-        <rect x="22" y="4" width="2" height="20" fill="#6b4a2a" />
-        <rect x="20" y="1" width="6" height="4" fill="#8fd7ff" />
-        <rect x="22" y="2" width="2" height="2" fill="#ffffff" />
-      </svg>
-    );
-  }
-
-  if (kind === "golem") {
-    return (
-      <svg viewBox="0 0 28 30" shapeRendering="crispEdges">
-        <rect x="8" y="1" width="12" height="8" fill="currentColor" />
-        <rect x="8" y="1" width="12" height="1" fill="#c3d0bc" />
-        <rect x="10" y="4" width="3" height="2" fill="#ff9b6b" />
-        <rect x="15" y="4" width="3" height="2" fill="#ff9b6b" />
-        <rect x="9" y="7" width="10" height="1" fill="#5d6a58" />
-        <rect x="5" y="9" width="18" height="12" fill="currentColor" />
-        <rect x="5" y="9" width="18" height="1" fill="#c3d0bc" />
-        <rect x="9" y="12" width="10" height="6" fill="#5d6a58" />
-        <rect x="11" y="13" width="6" height="4" fill="#ff9b6b" opacity="0.6" />
-        <rect x="0" y="10" width="5" height="10" fill="currentColor" />
-        <rect x="23" y="10" width="5" height="10" fill="currentColor" />
-        <rect x="0" y="20" width="6" height="4" fill="currentColor" />
-        <rect x="22" y="20" width="6" height="4" fill="currentColor" />
-        <rect x="7" y="21" width="6" height="9" fill="currentColor" />
-        <rect x="15" y="21" width="6" height="9" fill="currentColor" />
-        <rect x="7" y="21" width="6" height="1" fill="#5d6a58" />
-        <rect x="15" y="21" width="6" height="1" fill="#5d6a58" />
-      </svg>
-    );
-  }
-
+function MonsterSprite({ sheet, frames }) {
   return (
-    <svg viewBox="0 0 34 28" shapeRendering="crispEdges">
-      <g className="bs-wing bs-wing--l">
-        <path fill="currentColor" opacity="0.85" d="M6 2h10v3H6zM3 5h13v4H3zM6 9h10v3H6z" />
-        <path fill="#7d2a1c" d="M8 4h2v7H8zM12 4h2v7h-2z" />
-      </g>
-      <path fill="currentColor" d="M12 10h14v9H12z" />
-      <rect x="12" y="10" width="14" height="1" fill="#e07a5f" />
-      <rect x="13" y="13" width="12" height="4" fill="#7d2a1c" opacity="0.5" />
-      <path fill="currentColor" d="M24 4h8v8h-8z" />
-      <rect x="24" y="4" width="8" height="1" fill="#e07a5f" />
-      <rect x="26" y="7" width="2" height="2" fill="#ffd76b" />
-      <rect x="30" y="7" width="2" height="2" fill="#ffd76b" />
-      <path fill="#ffe9a8" d="M25 12h2v2h-2zM29 12h2v2h-2z" />
-      <path fill="currentColor" d="M22 2h2v3h-2zM28 1h2v3h-2z" />
-      <path fill="currentColor" d="M2 12h12v4H2z" />
-      <path fill="currentColor" d="M0 14h4v3H0z" />
-      <rect x="14" y="19" width="4" height="7" fill="currentColor" />
-      <rect x="21" y="19" width="4" height="7" fill="currentColor" />
-      <rect x="13" y="26" width="6" height="2" fill="#7d2a1c" />
-      <rect x="20" y="26" width="6" height="2" fill="#7d2a1c" />
-    </svg>
+    <span
+      className="bs-plate"
+      style={{ backgroundImage: "url(" + sheet + ")", "--frames": frames }}
+    />
   );
-}
-
-function MonsterSprite({ kind, boss }) {
-  if (boss) {
-    return <BossSprite kind={kind} />;
-  }
-
-  switch (kind) {
-    case "bat":
-      return (
-        <svg viewBox="0 0 16 9" shapeRendering="crispEdges">
-          <g className="bs-wing bs-wing--l">
-            <path fill="currentColor" d="M0 1h3v4H0zM3 3h2v2H3z" />
-          </g>
-          <g className="bs-wing bs-wing--r">
-            <path fill="currentColor" d="M13 1h3v4h-3zM11 3h2v2h-2z" />
-          </g>
-          <path fill="currentColor" d="M6 0h1v2H6zM9 0h1v2H9zM6 2h4v6H6z" />
-          <rect x="6" y="4" width="1" height="1" fill="#0d0a1c" />
-          <rect x="9" y="4" width="1" height="1" fill="#0d0a1c" />
-        </svg>
-      );
-    case "ghost":
-      return (
-        <svg viewBox="0 0 12 13" shapeRendering="crispEdges">
-          <path fill="currentColor" opacity="0.9" d="M4 0h4v1h2v1h1v9H1V2h1V1h2z" />
-          <path fill="currentColor" opacity="0.55" d="M1 11h2v2H1zM5 11h2v2H5zM9 11h2v2H9z" />
-          <rect x="3" y="4" width="2" height="3" fill="#0d0a1c" />
-          <rect x="7" y="4" width="2" height="3" fill="#0d0a1c" />
-        </svg>
-      );
-    case "imp":
-      return (
-        <svg viewBox="0 0 12 13" shapeRendering="crispEdges">
-          <path fill="currentColor" d="M1 0h1v3H1zM10 0h1v3h-1z" />
-          <path fill="currentColor" d="M2 2h8v7H2z" />
-          <rect x="3" y="4" width="2" height="2" fill="#0d0a1c" />
-          <rect x="7" y="4" width="2" height="2" fill="#0d0a1c" />
-          <rect x="4" y="7" width="4" height="1" fill="#0d0a1c" />
-          <g className="bs-legs">
-            <rect x="2" y="9" width="3" height="4" fill="currentColor" />
-            <rect x="7" y="9" width="3" height="4" fill="currentColor" />
-          </g>
-        </svg>
-      );
-    case "skeleton":
-      return (
-        <svg viewBox="0 0 12 15" shapeRendering="crispEdges">
-          <path fill="currentColor" d="M3 0h6v5H3z" />
-          <rect x="4" y="2" width="2" height="2" fill="#0d0a1c" />
-          <rect x="7" y="2" width="2" height="2" fill="#0d0a1c" />
-          <rect x="4" y="5" width="4" height="1" fill="currentColor" />
-          <rect x="5" y="6" width="2" height="4" fill="currentColor" />
-          <rect x="2" y="6" width="8" height="1" fill="currentColor" />
-          <rect x="3" y="8" width="6" height="1" fill="currentColor" />
-          <g className="bs-legs">
-            <rect x="3" y="10" width="2" height="5" fill="currentColor" />
-            <rect x="7" y="10" width="2" height="5" fill="currentColor" />
-          </g>
-        </svg>
-      );
-    case "mushroom":
-      return (
-        <svg viewBox="0 0 12 11" shapeRendering="crispEdges">
-          <path fill="currentColor" d="M3 0h6v1H3zM1 1h10v3H1z" />
-          <rect x="3" y="2" width="2" height="1" fill="#fff5f8" opacity="0.85" />
-          <rect x="7" y="1" width="2" height="2" fill="#fff5f8" opacity="0.85" />
-          <rect x="3" y="4" width="6" height="6" fill="#f3e2cf" />
-          <rect x="4" y="6" width="1" height="2" fill="#0d0a1c" />
-          <rect x="7" y="6" width="1" height="2" fill="#0d0a1c" />
-        </svg>
-      );
-    case "spider":
-      return (
-        <svg viewBox="0 0 14 10" shapeRendering="crispEdges">
-          <g className="bs-legs">
-            <path fill="currentColor" d="M0 2h3v1H0zM0 6h3v1H0zM11 2h3v1h-3zM11 6h3v1h-3z" />
-          </g>
-          <path fill="currentColor" d="M4 2h6v6H4z" />
-          <rect x="5" y="4" width="1" height="1" fill="#fff" />
-          <rect x="8" y="4" width="1" height="1" fill="#fff" />
-          <rect x="6" y="0" width="2" height="2" fill="currentColor" />
-        </svg>
-      );
-    default:
-      // The shape of the very first decorative sprite, kept as drawn.
-      return (
-        <svg viewBox="0 0 8 6" shapeRendering="crispEdges">
-          <path fill="currentColor" d="M3 0h2v1h1v1h1v4H0V2h1V1h2z" />
-          <rect x="2" y="3" width="1" height="1" fill="#0d0a1c" />
-          <rect x="5" y="3" width="1" height="1" fill="#0d0a1c" />
-          <rect x="1" y="2" width="1" height="1" fill="#ffffff" opacity="0.4" />
-        </svg>
-      );
-  }
 }
 
 function DropSprite({ drop }) {
@@ -1648,7 +1432,7 @@ export default function BattleScene() {
         </span>
         <span className="bs-facing" style={{ transform: "scaleX(" + hero.face + ")" }}>
           <span className="bs-sprite">
-            <HeroSprite gear={hero.gear} />
+            <HeroSprite gear={hero.gear} frames={12} />
           </span>
         </span>
       </span>
@@ -1664,7 +1448,7 @@ export default function BattleScene() {
           </span>
           <span className="bs-facing" style={{ transform: "scaleX(" + m.face + ")" }}>
             <span className="bs-sprite">
-              <MonsterSprite kind={m.kind} boss={m.boss} />
+              <MonsterSprite sheet={m.sheet} frames={m.sheetFrames} />
             </span>
           </span>
         </span>
