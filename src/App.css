@@ -214,7 +214,8 @@ body {
   .cart__label .iconbtn--danger { color: var(--danger); }
 
   /* Undo the night scene and its palette. */
-  .scene { display: none; }
+  .scene,
+  .battle { display: none; }
 
   .cart__content {
     display: block;
@@ -931,6 +932,122 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .sprite { animation: none; }
   .sprite--shoot { display: none; }
+}
+
+/* ---- battle ----
+ * Ornamental, so it sits in the scene layer behind the content and never takes
+ * pointer events.
+ */
+
+.battle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4%;
+  height: 46px;
+  pointer-events: none;
+}
+
+.battle__row {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 10%;
+}
+
+.battle__unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: transform 0.18s ease, opacity 0.3s ease;
+}
+
+.battle__unit--monster { flex-direction: column-reverse; }
+
+.battle__sprite { display: block; }
+.battle__sprite svg { display: block; height: 26px; width: auto; }
+.battle__unit--monster .battle__sprite svg { height: 22px; }
+
+/* Lunge toward the opponent on the turn the unit swings. */
+.battle__unit--hero.is-attacking { transform: translateX(9px); }
+.battle__unit--monster.is-attacking { transform: translateX(-9px); }
+
+.battle__unit.is-hurt { animation: shake 0.22s steps(2) 2; }
+.battle__unit.is-hurt .battle__sprite { filter: brightness(2.2) saturate(0.2); }
+
+.battle__unit.is-dead {
+  opacity: 0;
+  transform: translateY(6px) scaleY(0.4);
+}
+
+@keyframes shake {
+  0% { transform: translateX(-2px); }
+  100% { transform: translateX(2px); }
+}
+
+.battle__meters {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.battle__bar {
+  display: block;
+  width: 26px;
+  height: 3px;
+  background: #0d0a1c;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.battle__bar-fill {
+  display: block;
+  height: 100%;
+  transition: width 0.25s ease;
+}
+
+.battle__drop {
+  align-self: flex-end;
+  margin-bottom: 2px;
+  animation: dropin 0.4s ease-out, bob 1.4s ease-in-out infinite 0.4s;
+}
+
+.battle__drop svg { display: block; height: 14px; width: auto; }
+
+@keyframes dropin {
+  from { transform: translateY(-14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.battle__float {
+  position: absolute;
+  bottom: 30px;
+  font-family: var(--pixel);
+  font-size: 0.4375rem;
+  text-shadow: 1px 1px 0 #0d0a1c;
+  animation: floatup 1.6s ease-out forwards;
+}
+
+.battle__float--hero { left: 14%; }
+.battle__float--monster { right: 14%; }
+
+@keyframes floatup {
+  from { transform: translateY(6px); opacity: 0; }
+  30% { opacity: 1; }
+  to { transform: translateY(-14px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle__unit,
+  .battle__drop,
+  .battle__float { animation: none; }
 }
 
 .cart__content::-webkit-scrollbar { width: 8px; }
