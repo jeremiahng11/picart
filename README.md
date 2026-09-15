@@ -94,9 +94,16 @@ the page with a 200 status for missing assets and hide broken links.
 ## Versioning
 
 The patch version is bumped automatically. Once a push to `main` builds green,
-the `version` job in `ci.yml` runs `npm version patch`, commits the result, and
+the `version` job in `ci.yml` computes the next version, commits the result, and
 pushes it back, so the connect screen shows a number that increases with every
 change that lands.
+
+Each component rolls over at nine rather than growing without bound, so the
+sequence runs `1.0.8`, `1.0.9`, `1.1.0`, and `1.9.9` is followed by `2.0.0`.
+`npm version patch` cannot express that, so `scripts/bump-version.js` computes
+it. Its rules are covered by `npm run test-version`, a plain Node test: Jest
+cannot see `scripts/` because react-scripts pins its roots to `src/` and does
+not allow overriding that.
 
 Two details make that safe. The bump runs only after `build` succeeds, so a
 failing change does not consume a version. And the push uses `GITHUB_TOKEN`,

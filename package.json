@@ -36,7 +36,8 @@
     "electron": "electron .",
     "deploy-gh-pages": "gh-pages -d build",
     "build": "npm run react-build && npm run electron-build",
-    "start": "concurrently \"cross-env BROWSER=none npm run react-start\" \"npm run electron-run\""
+    "start": "concurrently \"cross-env BROWSER=none npm run react-start\" \"npm run electron-run\"",
+    "test-version": "node scripts/bump-version.test.js"
   },
   "eslintConfig": {
     "extends": [
