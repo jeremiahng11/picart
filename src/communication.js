@@ -43,6 +43,8 @@ class Communication {
 
     constructor() {
         this.featureStep = 0;
+        this.supportsBuildName = false;
+        this.supportsBankStreaming = false;
         this.supportsSpeedChangeBankInfo = false;
         this.supportsMbcInfo = false;
     }
@@ -300,6 +302,13 @@ class Communication {
                         this.supportsMbcInfo = true;
                     }
 
+                    // Step 5 adds command 12 (build name) and commands 13/14
+                    // (stream a whole bank instead of acking every 32 bytes).
+                    if (this.featureStep >= 5) {
+                        this.supportsBuildName = true;
+                        this.supportsBankStreaming = true;
+                    }
+
                     resolve(res);
                 }
                 catch (e) {
@@ -411,6 +420,36 @@ class Communication {
                 error => {
                     reject(error);
                 });
+        });
+    }
+
+    // Streams one whole 16KB bank as raw packets, acked once at the end,
+    // instead of one command-and-ack per 32 bytes. Requires featureStep 5.
+    streamBankCommand(bank, bankData) {
+        return new Promise((resolve, reject) => {
+            const header = new Uint8Array(2);
+            header[0] = (bank >> 8) & 0xFF;
+            header[1] = bank & 0xFF;
+
+            this.executeCommand(13, header, 1).then(result => {
+                const status = new Uint8Array(result);
+                if (status[0] !== 0) {
+                    reject("Bank stream not accepted");
+                    return;
+                }
+
+                // The device drains the endpoint as fast as it can and NAKs
+                // when its FIFO is full, so the host can just push.
+                return this.send(bankData).then(() => this.read(2)).then(res => {
+                    const view = new Uint8Array(res.data.buffer);
+                    if (view[0] !== 13 || view[1] !== 0) {
+                        reject("Bank was not written (code " + view[1] + ")");
+                        return;
+                    }
+                    resolve();
+                });
+            }, error => reject(error))
+                .catch(error => reject(error));
         });
     }
 

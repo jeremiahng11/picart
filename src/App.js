@@ -247,7 +247,7 @@ class GbCartridge extends React.Component {
       }, 1000);
     }
 
-    if (deviceInfo.featureStep > 4) {
+    if (deviceInfo.featureStep > 5) {
       console.log("The cartridge firmware might be too new! (featureStep = " + deviceInfo.featureStep);
       setTimeout(() => {
         toast.warning("The cartridge firmware might be too new!", {

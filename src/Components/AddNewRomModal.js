@@ -208,10 +208,19 @@ class AddNewRomModal extends React.Component {
 
             this.setState({ uploadRequestInProgress: false, uploadedBank: 0 });
 
+            // Firmware from featureStep 5 takes a whole bank in one go, which
+            // removes 511 of every 512 USB round trips. Older cartridges keep
+            // the chunked path.
+            const streaming = this.props.comm.supportsBankStreaming;
+            console.log(streaming ? "Uploading with bank streaming" : "Uploading in 32 byte chunks");
+
             for (var bank = 0; bank < this.state.romInfo.banks; bank++) {
-                for (var chunk = 0; chunk < CHUNKS_PER_BANK; chunk++) {
-                    await this.props.comm.sendRomChunkCommand(bank, chunk, this.rom.subarray((bank * BANK_SIZE) + (chunk * CHUNK_SIZE), (bank * BANK_SIZE) + ((chunk + 1) * CHUNK_SIZE)));
-                    console.log("Bank " + bank + " chunk " + chunk);
+                if (streaming) {
+                    await this.props.comm.streamBankCommand(bank, this.rom.subarray(bank * BANK_SIZE, (bank + 1) * BANK_SIZE));
+                } else {
+                    for (var chunk = 0; chunk < CHUNKS_PER_BANK; chunk++) {
+                        await this.props.comm.sendRomChunkCommand(bank, chunk, this.rom.subarray((bank * BANK_SIZE) + (chunk * CHUNK_SIZE), (bank * BANK_SIZE) + ((chunk + 1) * CHUNK_SIZE)));
+                    }
                 }
                 this.setState({ uploadedBank: bank + 1 });
             }
